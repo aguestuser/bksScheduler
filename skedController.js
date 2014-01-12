@@ -1,4 +1,4 @@
-//*CONSTRUCT SHEET OBJECTS
+ //*CONSTRUCT SHEET OBJECTS
 
 function constructSheets(sheetNames){
   var sheets = {},
@@ -17,7 +17,7 @@ function constructSheets(sheetNames){
       },
       Schedule: {
         key: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
-        sheets: ['weekly', 'update', 'lookup']
+        sheets: ['weekly', 'update', 'lookup', 'grid']
       }
     }; 
   for (var i = 0; i < sheetNames.length; i++){
@@ -400,9 +400,7 @@ function updateView(e){
     //if entity params specify 'all', retrive ids for every active entity
     if (names == 'all'){
       for (var i = 0; i < data.length; i++){
-        if (data[i].active){
-            ids.push(data[i].id);
-        }        
+        ids.push(data[i].id);
       }
     } else {
       
@@ -443,25 +441,51 @@ function updateView(e){
 
 
   function getShifts(start, end, restaurantIds, riderIds, view){
-    Logger.log('riderIds: ' + riderIds);
     var data = sheets.Shifts.shifts.data,
       shifts = [];
+    Logger.log('restaurantIds: ' + restaurantIds);
+    Logger.log('riderIds: ' + riderIds);
+    Logger.log('data.length: ' + data.length);
     for (var i = 0; i < data.length; i++){
-      //filter out shifts with dates outside the start/end windwo given in params
-      if ((data[i].start < start) || (data[i].start > end && data[i].start.getDate() > end.getDate())) {
+      Logger.log('i: ' + i);
+      //filter out shifts with dates outside the start/end span given in params
+      if (
+          (data[i].start < start && data[i].start.getDate() < start.getDate()) || 
+          (data[i].start > end && data[i].start.getDate() > end.getDate())
+      ) {
         continue;
       }
-      //if updateView mode is active, filter out any shifts with 'confirmed' status
-      if (view == 'update' && (data[i].status == 'confirmed' || data[i].status == 'cancelled')) {
-        continue;
+      //if user is in update view, filter out any confirmed or cancelled shifts      
+      if (view =='update'){
+        if (data[i].status == 'confirmed' || data[i].status == 'cancelled') {
+          continue;
+        }
       }
-      //add any shifts with restaurants or riders matching those specified in params to shifts array  
-      if (restaurantIds.indexOf(data[i].restaurantid) >= 0 && riderIds.indexOf(data[i].riderid) >= 0){
-        Logger.log('riderIds.indexOf(' + data[i].riderid + '): ' + riderIds.indexOf(data[i].riderid));
-        shifts.push(data[i]);
+      //if user is in lookup view, use an exclusive search for matching shifts (riders *and* restaurants)
+      if (view == 'lookup'){
+        // if all riders are specified in params, retrieve shifts with restaurants matching those in params
+        if (e.parameter.riders == 'all'){
+          if (restaurantIds.indexOf(data[i].restaurantid) >=0){
+            shifts.push(data[i]);//add retrieved shifts to shifts[]
+          }
+        //if all restaurants are specified in params, retrieve shifts with riders matching those in params        
+        } else if (e.parameter.restaurants == 'all'){
+          if (riderIds.indexOf(data[i].riderid) >= 0){
+            shifts.push(data[i]);
+          }
+        //if specific restaurants *and* riders are specified, use an *exclusive* search to retrieve shifts matching restaurants *and* riders
+        } else {
+          if (restaurantIds.indexOf(data[i].restaurantid) >= 0 && riderIds.indexOf(data[i].riderid) >= 0){
+            shifts.push(data[i]);
+          }
+        }
+      //in all views other than lookup, use an *inclusive* search to retrieve shifts matching restaurants *or* riders in params  
+      } else {
+        if (restaurantIds.indexOf(data[i].restaurantid) >= 0 || riderIds.indexOf(data[i].riderid) >= 0){
+          shifts.push(data[i]);
+        }
       }
     }
-    Logger.log(shifts);
     return shifts;
   };
 
@@ -497,19 +521,23 @@ function updateView(e){
 function updateShifts(){
   var sheets = constructSheets(['Shifts', 'Schedule']),
     shifts = sheets.Shifts.shifts,
-    schedule = sheets.Schedule.weekly,
+    schedule = sheets.Schedule[SpreadsheetApp.getActiveSheet().getName()],
     idMatchFound = false;
   //copy shift data from rows in view that match rows in model by id 
   for (var i = 0; i < schedule.data.length; i++){
     //skip rows with no data
+    /*
     if (typeof schedule.data[i].id != 'number'){
       continue;
     }
+    */
     for (var j = 0; j < shifts.data.length; j++){
+      /*
       //skip rows with no values
       if (typeof shifts.data[i].id != 'number'){
         continue;
       }
+      */
       //find all shifts in model with ids matching those in schedule range and overwrite them with data from schedule
       if (schedule.data[i].id == shifts.data[j].id){
         shifts.updateRow(schedule, i + 2, j + 2);
