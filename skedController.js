@@ -1,3 +1,6 @@
+
+
+
  //*CONSTRUCT SHEET OBJECTS
 
 function constructSheets(sheetNames){
@@ -374,7 +377,7 @@ function updateView(e){
   var app = UiApp.getActiveApplication(),  
   //consruct sheets
     sheets = constructSheets(['Restaurants', 'Riders', 'Shifts', 'Schedule']),
-    schedule = sheets.Schedule.weekly,
+    schedule = sheets.Schedule[e.parameter.view],
     //retrieve ids for restaurants and riders given in params
     restaurantIds = getIds(sheets.Restaurants.info.data, e.parameter.restaurants.split(', '));
     riderIds = getIds(sheets.Riders.info.data, e.parameter.riders.split(', '));
@@ -551,11 +554,91 @@ function updateShifts(){
   }
     
   //CALLBACKS
-  updateAssignments(sheets);
-  updateCalendar(sheets);
+  updateAssignments();
+  updateCalendars(schedule, shifts);
   SpreadsheetApp.getActiveSpreadsheet().toast('Edits successfully saved!');
 
 };
+
+function updateCalendars(schedule, shifts){
+  var events = getEvents(schedule),
+    statusCodes = {
+      unassigned: '???',
+      delegated: '**' + rider + '??',
+      confirmed: rider + ' (c)',
+      cancelled: 'CANCELLED'
+    };
+  //loop through all shifts in view
+  for (var i = 0; i < schedule.length; i++){
+  //check to see if calendars exist for all restaurants being updated
+  //if any calendars don't exist, create them then proceed
+  
+  //check to see if calendar events exist for all shifts
+  if (schedule[i].calid.length > 0 && schedule[i].calid != 'undefined') ?
+      //if a event exists, update it
+      getEventById(events, calId).setTitle(statusCodes[schedule[i].status]); :
+      //if not, create one
+      createEvent(schedule[i].riderNick);
+  }
+}
+
+function getEvents(calIds, schedule){
+  var events = [],
+    tempEvents = [];
+  //construct 2-d array of event ids matching start and end times
+  for (var i = 0; i < schedule.length; i++){
+    tempEventIds.push(
+      CalendarApp
+      .getCalendarById(getRestCalId(schedule[i].restaurantid))
+      .getEvents(shifts[i].start, shifts[i].end)
+    )
+  }
+  for (var i = 0; i < tempEventIds.length; i++) {
+    for (var j = 0; j < tempEventIds[i].length) {
+      events.push(tempEventIds[i][j]);
+    }
+  }
+  return events;
+};
+
+function getRestCalId(restId){
+  var info = constructSheets(['Restaurants']).Restaurants.info;
+  for (var i = 0; i < info.length; i++){
+    if (info[i].id == restId) {
+      return info[i].calid;
+    }  
+  }
+};
+
+function updateEvent(events, calid, rider, status, statusCodes){
+  
+};
+
+function getEventById(events, eventIds){
+  for (var i = 0; i < eventIds.length; i++){
+    for (var j = 0; j < events.length; j++){
+      if (events[j].getId() == eventIds[i]) {return events[j];}      
+    }
+  }
+};
+
+
+function createEvent(shift, statusCodes){
+  var event = CalendarApp
+    .getCalendarById(getRestCalId(shift.restaurantid))
+    .createEvent(statusCodes[shift.status], shift.start, shift.end); 
+  appendEventId(shift.id, event.getId());
+}
+
+function appendEventId(shiftId, eventId){
+  var shifts = constructSheets(['Shifts']).Shifts.shifts;
+  for (var i = 0; i < shifts.length; i++){
+    if (shifts[i].id == shiftId){
+      shifts[i].calid = eventId;
+    }
+  }
+};
+
 
 function updateAssignments(sheets){
   //construct sheets
