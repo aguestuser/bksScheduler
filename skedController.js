@@ -1,7 +1,30 @@
+//*CONSTRUCT SHEET OBJECTS
 
-
-
- //*CONSTRUCT SHEET OBJECTS
+function constructSheet(sheetName){
+  var sheet = {},
+    sheetMap = {
+      Riders: {
+        key: '0AkfgEUsp5QrAdEt2eU9PcWhKbGVoUzlOS2RkU2RxMEE',
+        sheets: ['info', 'assignments', 'metrics']
+      },
+      Restaurants: {
+        key: '0AkfgEUsp5QrAdFJyOW9RMjk5M2FNMXI4bmJBMzMwWFE',
+        sheets: ['info', 'needs', 'metrics']
+      },
+      Shifts: {
+        key: '0AkfgEUsp5QrAdEdJc3BmMEt0TXFTdmVHY1cyWHdMTFE',
+        sheets: ['shifts']
+      },
+      Schedule: {
+        key: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
+        sheets: ['weekly', 'update', 'lookup', 'grid']
+      }
+    }; 
+  for (var i = 0; i < sheetMap[sheetName].sheets.length; i++){
+      sheet[sheetMap[sheetName].sheets[i]] = new Sheet(sheetMap[sheetName].key, i);
+  }
+  return sheet;
+};
 
 function constructSheets(sheetNames){
   var sheets = {},
@@ -55,19 +78,31 @@ function Sheet(key, index) {
   //translate row data to JSON (see script below)
   this.data = getRowsData(this.g, this.g.getRange(this.row.first, this.col.first, this.row.last, this.col.last), 1);
 
-  //*ACCESSOR METHODS
+  //create array of header names
+  this.headers = this.g.getRange(1, 1, 1, this.col.last).getValues()[0];
 
-  this.getCellData = function (row, col){
+   //*ACCESSOR METHODS
+
+  this.getCell = function (row, col){
     return this.g.getRange(row, col).getValue();
   };
 
-  this.updateCellData = function(sheet, row, col, val){
+  this.updateCell = function(row, col, val){
     this.g.getRange(row, col).setValue(val);
     return this;
   };
 
+  this.getRowNum = function(id){
+    for (var i = 0; i < this.data.length; i++){
+      if (this.data[i].id == id) {
+        Logger.log('rowNum: ' + (i + 2));
+        return (i + 2);
+      }
+    }
+  };
+
   this.getRow = function(row){
-    return this.g.getRange(row, this.col.first, 1, this.col.num);    
+    return this.g.getRange(row, this.col.first, 1, this.col.num).getValues();    
   }
 
   this.updateRow = function(srcSheet, srcRow, dstRow){
@@ -82,16 +117,15 @@ function Sheet(key, index) {
     return this;  //for method chaining
   };
 
-
+  this.getColNum = function (headerName){
+    Logger.log('this.headers.length: ' + this.headers.length);
+    for (var i = 0; i < this.headers.length; i++){
+      Logger.log('headers['+i+']: ' + this.headers[i]);
+      if (this.headers[i] == headerName) {return i + 1};
+    }
+  }
 
 };
-
-//*SPREADSHEET CRUD FUNCTIONS
-function getCellData(row, col){
-  return SpreadsheetApp.getActiveSpreadsheet().getSheets()[0].getRange(row, col).getValue();
-};
-
-
 
 //*TRANSLATE SPREADSHEET DATA TO JSON
 
@@ -571,8 +605,11 @@ function updateCalendars(schedule, shifts){
   //loop through all shifts in view
   for (var i = 0; i < schedule.length; i++){
   //check to see if calendars exist for all restaurants being updated
-  //if any calendars don't exist, create them then proceed
-  
+  if (!calExists(schedule[i].restaurantid)){
+    //if any calendars don't exist, throw an error message warning the user to create one and proceed
+    SpreadsheetApp.getActiveSpreadsheet.toast('ERROR: There is no calendar for ' + schedule[i].restaurantname + '. Please go to the restaurants model and create one.')
+  }
+
   //check to see if calendar events exist for all shifts
   if (schedule[i].calid.length > 0 && schedule[i].calid != 'undefined') ?
       //if a event exists, update it
@@ -581,6 +618,8 @@ function updateCalendars(schedule, shifts){
       createEvent(schedule[i].riderNick);
   }
 }
+
+function 
 
 function getEvents(calIds, schedule){
   var events = [],
@@ -602,7 +641,7 @@ function getEvents(calIds, schedule){
 };
 
 function getRestCalId(restId){
-  var info = constructSheets(['Restaurants']).Restaurants.info;
+  var info = constructSheet(['Restaurants']).info;
   for (var i = 0; i < info.length; i++){
     if (info[i].id == restId) {
       return info[i].calid;
@@ -674,16 +713,11 @@ function updateAssignments(sheets){
         } 
         //write new assignment values to Rider.assignments model
         assigns
-          .updateCellData(j + 2, assigns.getCol('status'), assigns.data[j].status)
-          .updateCellData(j + 2, assigns.getCol('shiftId'), assigns.data[j].shiftId);
+          .updateCell(j + 2, assigns.getCol('status'), assigns.data[j].status)
+          .updateCell(j + 2, assigns.getCol('shiftId'), assigns.data[j].shiftId);
       }
     }
   }
-};
-
-
-function updateCalendar(){
-
 };
 
 
