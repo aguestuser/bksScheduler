@@ -17,7 +17,7 @@ function constructSheet(sheetName){
       },
       Schedule: {
         key: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
-        sheets: ['weekly', 'update', 'lookup', 'grid']
+        sheets: ['grid', 'weekly', 'update', 'lookup', 'cellmap', 'rowmap']
       }
     }; 
   for (var i = 0; i < sheetMap[sheetName].sheets.length; i++){
@@ -43,7 +43,7 @@ function constructSheets(sheetNames){
       },
       Schedule: {
         key: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
-        sheets: ['weekly', 'update', 'lookup', 'grid']
+        sheets: ['grid', 'weekly', 'update', 'lookup', 'cellmap', 'rowmap']
       }
     }; 
   for (var i = 0; i < sheetNames.length; i++){
@@ -65,7 +65,7 @@ function Sheet(key, index) {
   
   //offset row/col picker for UI if the sheet in question is the schedule, otherwise set R,C of first cell to 2,1
   this.col = {
-    first: 1,
+    first: (key == '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE' && index == 0) ? 2 : 1,
     last: this.g.getLastColumn(),
     num: this.g.getLastColumn()
   };
@@ -117,11 +117,20 @@ function Sheet(key, index) {
   };
 
   this.getColNum = function (headerName){
-    Logger.log('headers: ' + this.headers);
-    Logger.log('headerName: ' + headerName);
-    Logger.log('indexOf(headerName): ' + this.headers.indexOf(headerName));
     return this.headers.indexOf(headerName) + 1;
   }
+
+  this.clearRange = function (){
+    this.g
+      .getRange(this.row.first, this.col.first, this.row.num, this.col.num)
+      .clear({contentsOnly:true});
+  };
+
+  this.setRange = function (range){
+    this.g
+      .getRange(this.row.first, this.col.first, this.length, range[0].length)
+      .setValues(range);
+  };
 
 };
 
@@ -248,6 +257,15 @@ Array.prototype.dedupe = function() {
     return this;
 };
 
+Date.prototype.incrementDate = function(numDays){
+  this.setDate(this.getDate() + numDays);
+  return this;
+}
+
+function toast(string){
+  SpreadsheetApp.getActiveSpreadsheet().toast(string);
+};
+
 
 //*CREATE MENU BUTTONS
 
@@ -271,8 +289,7 @@ function initUpdateViewUi(){
 
   //get sheet and sheet index to determine view to pass to click handler
   var sheetName = SpreadsheetApp.getActiveSheet().getName(),
-    sheets = constructSheets(['Schedule']),
-    sheet = sheets.Schedule[sheetName];
+    sheet = constructSheet('Schedule')[sheetName];
 
   //retrieve view's current start and end dates from sheet data
   
@@ -346,6 +363,8 @@ function initUpdateViewUi(){
   SpreadsheetApp.getActiveSpreadsheet().show(app);
 };
 
+///// vvv UPDATE VIEW MAIN FUNCTION vvv //////
+
 function updateView(e){
   Logger.log('e: ' + e);
   Logger.log('e.parameter: ' + e.parameter);
@@ -357,191 +376,377 @@ function updateView(e){
 
   //store reference to active uiApp instance
   var app = UiApp.getActiveApplication(),  
-  //consruct sheets
-    sheets = constructSheets(['Restaurants', 'Riders', 'Shifts', 'Schedule']),
-    schedule = sheets.Schedule[e.parameter.view],
+    //consruct sheets
+    restaurants = constructSheet('Restaurants').info.data,
+    riders = constructSheet('Riders').info.data,
     //retrieve ids for restaurants and riders given in params
-    restaurantIds = getIds(sheets.Restaurants.info.data, e.parameter.restaurants.split(', '));
-    riderIds = getIds(sheets.Riders.info.data, e.parameter.riders.split(', '));
-    //if restaurant and rider ids are found, retrieve corresponding shifts and populate view with them
-    if (restaurantIds.length > 0 && riderIds.length > 0) {
-      shifts = getShifts(e.parameter.start, e.parameter.end, restaurantIds, riderIds, e.parameter.view);
-      setScheduleRange(shifts, e.parameter.view);
-      //if not, terminate execution and throw the appropriate error message
-    } else {
-      if (restaurantIds.length <= 0){
-        SpreadsheetApp.getActiveSpreadsheet().toast('EROR: No restaurants matching the specified names were retrieved.');
-      }
-      if (riderIds.length <= 0){
-        SpreadsheetApp.getActiveSpreadsheet().toast('EROR: No riders matching the specified names were retrieved.');
-      }
+    restaurantIds = getIds(restaurants, e.parameter.restaurants.split(', ')),
+    riderIds = getIds(riders, e.parameter.riders.split(', ')),
+    //note if all restaurants or riders have been specified in params
+    allRests = e.parameter.restaurants === 'all' ? true : false,
+    allRiders = e.parameter.riders === 'all' ? true : false;
+  //if restaurant and rider ids are found, retrieve corresponding shifts and populate view with them
+  if (restaurantIds.length > 0 && riderIds.length > 0) {
+    shifts = getShifts(e.parameter.start, e.parameter.end, restaurantIds, riderIds, allRests, allRiders, e.parameter.view);
+    if (shifts.length > 0){
+      setScheduleRange(shifts, e.parameter.view);      
     }
-
-  //CLOSURES
-
-  //reverse lookup restaurant id's by restaurant name, store both in array
-  function getIds(data, names){
-    var ids = [];
-    //if entity params specify 'all', retrive ids for every active entity
-    if (names == 'all'){
-      for (var i = 0; i < data.length; i++){
-        ids.push(data[i].id);
-      }
-    } else {
-      
-      var anyIdFound = false;
-      //reverse lookup each entity id by its name
-      //loop through param names
-      for (var i = 0; i < names.length; i++){
-        //initialize error control flow vars
-        var idFound = false,
-          entityActive = false;
-        //compare param names to entity names in model
-        for (var j = 0; j < data.length; j++){
-          //if match found and entity is active, add the entity's to ids[]
-          if (data[j].name == names[i]) {
-            idFound = true;
-            ids.push(data[j].id);
-            if (data[j].active){
-              entityActive = true;
-            } 
-            break;                          
-          }
-        }
-        anyIdFound = idFound;
-        //if there is no entity with the name given in params, throw an error message
-        if (!idFound) {
-          SpreadsheetApp.getActiveSpreadsheet().toast('ERROR: There is no entity with the name "' + names[i] + '"');
-          //break;
-        }
-        //if the restaurant given in params is inactive throw an error message
-        if (!entityActive) {
-          SpreadsheetApp.getActiveSpreadsheet().toast('WARNING: The entity "' + names[i] + '" is inactive.');
-          //break;
-        }
-      }
+    //if not, terminate execution and throw the appropriate error message
+  } else {
+    if (restaurantIds.length <= 0){
+      SpreadsheetApp.getActiveSpreadsheet().toast('EROR: No restaurants matching the specified names were retrieved.');
     }
-    return ids;
-  };
-
-
-  function getShifts(start, end, restaurantIds, riderIds, view){
-    var data = sheets.Shifts.shifts.data,
-      shifts = [];
-    Logger.log('restaurantIds: ' + restaurantIds);
-    Logger.log('riderIds: ' + riderIds);
-    Logger.log('data.length: ' + data.length);
-    for (var i = 0; i < data.length; i++){
-      Logger.log('i: ' + i);
-      //filter out shifts with dates outside the start/end span given in params
-      if (
-          (data[i].start < start && data[i].start.getDate() < start.getDate()) || 
-          (data[i].start > end && data[i].start.getDate() > end.getDate())
-      ) {
-        continue;
-      }
-      //if user is in update view, filter out any confirmed or cancelled shifts      
-      if (view =='update'){
-        if (data[i].status == 'confirmed' || data[i].status == 'cancelled') {
-          continue;
-        }
-      }
-      //if user is in lookup view, use an exclusive search for matching shifts (riders *and* restaurants)
-      if (view == 'lookup'){
-        // if all riders are specified in params, retrieve shifts with restaurants matching those in params
-        if (e.parameter.riders == 'all'){
-          if (restaurantIds.indexOf(data[i].restaurantid) >=0){
-            shifts.push(data[i]);//add retrieved shifts to shifts[]
-          }
-        //if all restaurants are specified in params, retrieve shifts with riders matching those in params        
-        } else if (e.parameter.restaurants == 'all'){
-          if (riderIds.indexOf(data[i].riderid) >= 0){
-            shifts.push(data[i]);
-          }
-        //if specific restaurants *and* riders are specified, use an *exclusive* search to retrieve shifts matching restaurants *and* riders
-        } else {
-          if (restaurantIds.indexOf(data[i].restaurantid) >= 0 && riderIds.indexOf(data[i].riderid) >= 0){
-            shifts.push(data[i]);
-          }
-        }
-      //in all views other than lookup, use an *inclusive* search to retrieve shifts matching restaurants *or* riders in params  
-      } else {
-        if (restaurantIds.indexOf(data[i].restaurantid) >= 0 || riderIds.indexOf(data[i].riderid) >= 0){
-          shifts.push(data[i]);
-        }
-      }
+    if (riderIds.length <= 0){
+      SpreadsheetApp.getActiveSpreadsheet().toast('EROR: No riders matching the specified names were retrieved.');
     }
-    return shifts;
-  };
-
-  function setScheduleRange(shifts, view){
-    var sheet = sheets.Schedule[view],
-      range = [];
-    //clear current view
-    sheet.g.getRange(sheet.row.first, sheet.col.first, sheet.row.num, sheet.col.num).clear({contentsOnly:true});
-    for (var i = 0; i < shifts.length; i++){
-      range[i] = [
-        shifts[i].id,
-        shifts[i].start,
-        shifts[i].end,
-        shifts[i].am,
-        shifts[i].pm,
-        shifts[i].restaurantid,
-        shifts[i].restaurantname,
-        shifts[i].riderid,
-        shifts[i].ridernick,
-        shifts[i].status,
-        shifts[i].urgency,
-        shifts[i].billing
-      ];
-    }
-    sheet.g
-    .getRange(sheet.row.first, sheet.col.first, range.length, range[0].length)
-    .setValues(range);
-  };
+  }
   //close uiApp instance
   return app.close();
 };
 
-function updateShifts(){
-  var sheets = constructSheets(['Shifts', 'Schedule']),
-    shifts = sheets.Shifts.shifts,
-    schedule = sheets.Schedule[SpreadsheetApp.getActiveSheet().getName()],
-    idMatchFound = false;
-  //copy shift data from rows in view that match rows in model by id 
-  for (var i = 0; i < schedule.data.length; i++){
-    for (var j = 0; j < shifts.data.length; j++){
-      Logger.log('j: ' + j);
-      //find all shifts in model with ids matching those in schedule range and overwrite them with data from schedule
-      if (schedule.data[i].id == shifts.data[j].id){
-        idMatchFound = true;
-        for (var k in schedule.data[i]){
-          Logger.log('k: ' + k);
-          Logger.log('schedule data: ' + schedule.data[i][k] + 'shifts data: ' + shifts.data[j][k]);
-          Logger.log('mismatch: ' + (schedule.data[i][k] != shifts.data[j][k]));
-          if (schedule.data[i][k] != shifts.data[j][k]){
-            Logger.log('rowNum: ' + shifts.getRowNum(shifts.data[i].id));
-            Logger.log('colNum: ' + shifts.getColNum(k));
-            Logger.log('data to write: ' + schedule.data[i][k]);
-            shifts.updateCell(shifts.getRowNum(shifts.data[i].id), shifts.getColNum(k), schedule.data[i][k]);
+
+////// ^^^ UPDATE VIEW MAIN FUNCTION ^^^ //////
+
+////// vvv UPDATE VIEW HELPER FUNCTIONS vvv ///////
+
+//reverse lookup restaurant id's by restaurant name, store both in array
+function getIds(data, names){
+  var ids = [];
+  //if entity params specify 'all', retrive ids for every active entity
+  if (names == 'all'){
+    for (var i = 0; i < data.length; i++){
+      ids.push(data[i].id);
+    }
+  } else {
+    
+    var anyIdFound = false;
+    //reverse lookup each entity id by its name
+    //loop through param names
+    for (var i = 0; i < names.length; i++){
+      //initialize error control flow vars
+      var idFound = false,
+        entityActive = false;
+      //compare param names to entity names in model
+      for (var j = 0; j < data.length; j++){
+        //if match found and entity is active, add the entity's to ids[]
+        if (data[j].name == names[i]) {
+          idFound = true;
+          ids.push(data[j].id);
+          if (data[j].active){
+            entityActive = true;
+          } 
+          break;                          
+        }
+      }
+      anyIdFound = idFound;
+      //if there is no entity with the name given in params, throw an error message
+      if (!idFound) {
+        SpreadsheetApp.getActiveSpreadsheet().toast('ERROR: There is no entity with the name "' + names[i] + '"');
+        //break;
+      }
+      //if the restaurant given in params is inactive throw an error message
+      if (!entityActive) {
+        SpreadsheetApp.getActiveSpreadsheet().toast('WARNING: The entity "' + names[i] + '" is inactive.');
+        //break;
+      }
+    }
+  }
+  return ids;
+};
+
+
+function getShifts(start, end, restaurantIds, riderIds, allRests, allRiders, view){
+  var data = constructSheet('Shifts').shifts.data,
+    shifts = [];
+  for (var i = 0; i < data.length; i++){
+    //filter out shifts with dates outside the start/end span given in params
+    if (
+        (data[i].start < start && data[i].start.getDate() < start.getDate()) || 
+        (data[i].start > end && data[i].start.getDate() > end.getDate())
+    ) {
+      continue;
+    }
+    //if user is in update view, filter out any confirmed or cancelled shifts      
+    if (view =='update'){
+      if (data[i].status == 'confirmed' || data[i].status == 'cancelled') {
+        continue;
+      }
+    }
+    //if user is in lookup view, use an exclusive search for matching shifts (riders *and* restaurants)
+    if (view == 'lookup'){
+      // if all riders are specified in params, retrieve shifts with restaurants matching those in params
+      if (allRiders){
+        if (restaurantIds.indexOf(data[i].restaurantid) >=0){
+          shifts.push(data[i]);//add retrieved shifts to shifts[]
+        }
+      //if all restaurants are specified in params, retrieve shifts with riders matching those in params        
+      } else if (allRests){
+        if (riderIds.indexOf(data[i].riderid) >= 0){
+          shifts.push(data[i]);
+        }
+      //if specific restaurants *and* riders are specified, use an *exclusive* search to retrieve shifts matching restaurants *and* riders
+      } else {
+        if (restaurantIds.indexOf(data[i].restaurantid) >= 0 && riderIds.indexOf(data[i].riderid) >= 0){
+          shifts.push(data[i]);
+        }
+      }
+    //in all views other than lookup, use an *inclusive* search to retrieve shifts matching restaurants *or* riders in params  
+    } else {
+      if (restaurantIds.indexOf(data[i].restaurantid) >= 0 || riderIds.indexOf(data[i].riderid) >= 0){
+        shifts.push(data[i]);
+      }
+    }
+  }
+  if (view == 'update' && shifts.length == 0){
+    toast('There are no hanging shifts!');
+  } else {
+    return shifts;
+  }
+};
+
+function setScheduleRange(shifts, view){
+  var sheet = constructSheet('Schedule')[view],
+    range = [];
+  if (view == 'grid'){
+    range = setGrid(shifts);
+  }
+  //clear current view
+  sheet.g.getRange(sheet.row.first, sheet.col.first, sheet.row.num, sheet.col.num).clear({contentsOnly:true});
+  for (var i = 0; i < shifts.length; i++){
+    range[i] = [
+      shifts[i].id,
+      shifts[i].start,
+      shifts[i].end,
+      shifts[i].am,
+      shifts[i].pm,
+      shifts[i].restaurantid,
+      shifts[i].restaurantname,
+      shifts[i].riderid,
+      shifts[i].ridernick,
+      shifts[i].status,
+      shifts[i].urgency,
+      shifts[i].billing,
+      shifts[i].calendarid
+    ];
+  }
+  sheet.g
+  .getRange(sheet.row.first, sheet.col.first, range.length, range[0].length)
+  .setValues(range);
+};
+
+////// vvv SET GRID MAIN FUNCTION vvv //////
+
+function setGrid(shifts, restaurantIds){
+  var cellMap = constructSheet('Schedule').cellmap.data;
+    grid = constructSheet('Schedule').grid,
+    restaurants = getRestaurants(shifts),
+    gShifts = getGShifts(restaurants),
+    range = getGRange(gShifts);
+  
+  grid.setRange(range);
+  //highlightShifts(range);
+  setCellMap(gShifts);
+};
+
+////// ^^^ SET GRID MAIN FUNCTION ^^^ //////
+
+////// vvv SET GRID HELPER FUNCTIONS vvv //////
+
+function getRestaurants(shifts){
+  //construct de-duped array of restaurants with shifts this week
+  for (i = 0; i < shifts.length){
+    restaurants.push(getNames(restaurantIds)).dedupe().alphabetical();
+  }  
+};
+
+function getGShifts(shifts, restaurants){
+  var gShifts = [];
+  for (i = 0; i < restaurants.length){
+    gShifts.push({
+      restaurants[i]: {
+        mon: {
+          am: {shifts: [], col: 2}, 
+          pm: {shifts: [], col: 3}
+        },
+        tue: {
+          am: {shifts: [], col: 4}, 
+          pm: {shifts: [], col: 5}
+        },
+        wed: {
+          am: {shifts: [], col: 5}, 
+          pm: {shifts: [], col: 6}
+        },
+        thu: {
+          am: {shifts: [], col: 7}, 
+          pm: {shifts: [], col: 8}
+        },
+        fri: {
+          am: {shifts: [], col: 9}, 
+          pm: {shifts: [], col: 10}
+        },
+        sat: {
+          am: {shifts: [], col: 11}, 
+          pm: {shifts: [], col: 12}
+        },
+        sun: {
+          am: {shifts: [], col: 13}, 
+          pm: {shifts: [], col: 14}
+        },        
+      }
+    }); 
+    populateGShiftArrays(gShifts[i]);
+  }
+  return gShifts;
+};
+
+function populateGShiftArrays(shifts, gShift){
+  for (var rest in gShift){
+    for (var day in rest){
+      for (var period in day){
+        gShifts[rest][day][period] = getGShiftData(shifts, rest, day, period);
+      }
+    }
+  }
+};
+
+function gGShiftData(shifts, rest, day, period){
+  var am = (period == 'am') ? true : false,
+    pm = (am) ? false : true,
+    dates = {
+      mon: weekStart,
+      tue: weekStart.incrementDate(1),
+      wed: weekStart.incrementDate(2),
+      thu: weekStart.incrementDate(3),
+      fri: weekStart.incrementDate(4),
+      sat: weekStart.incrementDate(5),
+      sun: weekStart.incrementDate(6)
+    },
+    date = dates[day],
+    gShiftData= [];
+
+  for (var i = 0; i < shifts.length; i++){
+    var shift = shifts[i];
+    if (
+      shift.am == am && 
+      shift.pm == pm && 
+      shift.start.getYear() == date.getYear() &&
+      shift.start.getMonth() == date.getMonth() &&
+      shift.start.getDate() == date.getDate()
+    ) {
+      gShiftData.push(shift);
+    }
+  }
+  return gShiftData;
+};
+
+function abbreviateStatus(status){
+  abbrevs = {
+    unassigned: '-u',
+    delegated: '-d',
+    confirmed: '-c',
+    cancelled: '-x'
+  }
+};
+
+function getGRange(gShifts){
+  var range = [];
+  for (var i = 0; i < gShifts.length; i++){
+      var gShift = gShifts[i];
+      range[i] = [
+        gShift.rest,
+        gShift.mon.am,
+        gShift.mon.pm,
+        gShift.tue.am,
+        gShift.tue.pm,
+        gShift.wed.am,
+        gShift.wed.pm,
+        gShift.thu.am,
+        gShift.thu.pm,
+        gShift.fri.am,
+        gShift.fri.pm,
+        gShift.sat.am,
+        gShift.sat.pm,
+        gShift.sun.am,
+        gShift.sun.pm
+      ]
+    }
+  }
+};
+
+function setCellMap(gShifts){
+  var cellmap = constructSheet('Schedule').cellmap;
+    range = [],
+  //build cellmap range from gShift data
+  for (var i = 0; i < gShifts.length; i++){
+    for (var rest in gShifts[i]){
+      for (var day in gShifts[i][rest]){
+        for (var period in gShifts[i][rest][day]){
+          for (var j = 0; j < gShifts[i][rest][day][period].shifts.length; j++){
+            range.push([
+              restaurants.indexOf(rest),//row
+              gShifts[i][rest][day][period].col//col
+              gShifts[i][rest][day][period].shifts[j]//index 
+              gShifts[i][rest][day][period].shifts[j].id//shiftId
+            ]);
           }
         }
       }
     }
-    //if a row in the view doesn't match a row in the model by id, create a new row and append it to the model
-    if (!idMatchFound) {
-      shifts.appendRow(schedule, i + 2);
-    }
   }
-    
-  //CALLBACKS
-  //updateAssignments();
-  updateCalendars(schedule);//pass schedule view as an argument to avoid having to call .getActiveSheet() again
-  SpreadsheetApp.getActiveSpreadsheet().toast('Edits successfully saved!');
+  //prepend cellMap id to first cell of each row in range
+  for (var i = 0; i < range.length; i++){
+    range[i].unshift(i);
+  }
+  //clear cellmap worksheet target range
+  cellmap.clearRange();
+  //write range to cellmap worksheet
+  cellmap.setRange();
+};
+
+function highlightShifts(){
 
 };
 
-//***** MAIN CALENDAR UPDATE FUNCTION *****//
+////// ^^^ SET GRID HELPER FUNCTIONS ^^^ //////
+
+
+
+function setCellMap(){};
+
+
+
+
+
+
+////// ^^^ UPDATE VIEW HELPER FUNCTIONS ^^^ ///////
+
+
+function updateShifts(){
+  var shifts = constructSheet('Shifts').shifts,
+    schedule = constructSheet('Schedule')[SpreadsheetApp.getActiveSheet().getName()];
+  //copy shift data from rows in view that match rows in model by id 
+  for (var i = 0; i < schedule.data.length; i++){
+    var id = schedule.data[i].id;
+    //if no shift exists in model w/ id matching schedule, create and append a new row to the model w/ data from the sked
+    if (shifts.length < id + 2){
+      shifts.appendRow(schedule, i + 2);
+    } else {
+      //overwrite all cell data in model shifts matched to view shifts by id whose old values differ from new values
+      for (var k in schedule.data[i]){
+        if (schedule.data[i][k] != shifts.data[id][k]){
+          shifts.updateCell(shifts.getRowNum(shifts.data[i].id), shifts.getColNum(k), schedule.data[i][k]);
+        }
+      }
+    }
+  }    
+  //CALLBACKS
+  toast('Shifts spreadsheet successfully updated!');
+  //updateAssignments();
+  updateCalendars(schedule);//pass schedule view as an argument to avoid having to call .getActiveSheet() again
+  toast('Edits successfully saved!');
+};
+
+////// vvv UPDATE CALENDAR MAIN FUNCTION vvv //////
 function updateCalendars(schedule){
   var sheets = constructSheets(['Restaurants', 'Shifts']);
     shifts = sheets.Shifts.shifts;
@@ -564,7 +769,6 @@ function updateCalendars(schedule){
       restId = schedule.data[i].restaurantid,
       calId = schedule.data[i].calendarid,
       shift = schedule.data[i];
-      Logger.log('schedule.data['+i+']ridernick: ' + schedule.data[i].ridernick);
     //check to see if calendar events exist for all shifts
    (calId !== '' && calId !== 'undefined' && calId !== undefined) ?
       //if a event exists, update it
@@ -572,8 +776,11 @@ function updateCalendars(schedule){
       //if not, create one
       createEvent(calendars[shift.restaurantid].cal, schedule, shifts, shift, getStatusCode(rider, status));    
   }
+  toast('Calendar successfully updated!');
 
-  //**************************************//
+
+
+  ////// ^^^ UPDATE CALENDAR MAIN FUNCTION ^^^ //////
 
   //**CLOSURES
 
@@ -587,7 +794,6 @@ function updateCalendars(schedule){
 
   function getCals(schedule, restIds){
     var cals = {};
-    Logger.log('restIds.length: ' + restIds.length);
     for (var i = 0; i < restIds.length; i++){
       var calObj = CalendarApp.getCalendarById(getCalId(restIds[i]));
       cals[restIds[i]] = {
@@ -624,7 +830,6 @@ function updateCalendars(schedule){
   };
 
   function getEventById(calendars, restId, eventId){
-    Logger.log('calendars['+restId+']'+calendars[restId]);
     return calendars[restId].events[eventId];
   };
 
@@ -675,8 +880,6 @@ function updateCalendars(schedule){
     };
     return statusCodes[status];
   };
-
-
 };
 
 

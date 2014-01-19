@@ -46,7 +46,7 @@ function Sheet(key, index) {
   //translate row data to JSON (see script below)
   this.data = getRowsData(this.g, this.g.getRange(this.row.first, this.col.first, this.row.last, this.col.last), 1);
 
-  //
+  //create array of header names
   this.headers = this.g.getRange(1, 1, 1, this.col.last).getValues()[0];
 
   //*ACCESSOR METHODS
@@ -216,7 +216,9 @@ function addCalendars () {
 	Logger.log('info.data.length: '+ info.data.length);
 	for (var i = 0; i < info.data.length; i++){
 		Logger.log('info.data['+i+'].calendarid: ' + info.data[i].calendarid);
-		if(info.data[i].calendarid !== undefined) {
+		if (!info.data[i].active) {
+			continue;
+		} else if (info.data[i].calendarid !== undefined) {
 			continue;
 		} else {
 			Logger.log('Creating Calendar for ' + info.data[i].name + '.')
