@@ -1,3 +1,7 @@
+/**************************************************
+COPYRIGHT 2014 AUSTIN GUEST -- ALL RIGHTS RESERVED
+**************************************************/
+
 //*CONSTRUCT SHEET OBJECTS
 
 function constructSheet(sheetName){
@@ -17,7 +21,11 @@ function constructSheet(sheetName){
       },
       Schedule: {
         key: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
-        sheets: ['grid', 'weekly', 'update', 'lookup', 'cellmap', 'rowmap']
+        sheets: ['grid', 'weekly', 'update', 'lookup']
+      },
+      ScheduleCellMaps: {
+        key: '0AkfgEUsp5QrAdEE4eUhDT2RnNmlwRnQ0dkRsSHZlS3c',
+        sheets: ['grid', 'weekly', 'update', 'lookup']
       }
     }; 
   for (var i = 0; i < sheetMap[sheetName].sheets.length; i++){
@@ -65,7 +73,7 @@ function Sheet(key, index) {
   
   //offset row/col picker for UI if the sheet in question is the schedule, otherwise set R,C of first cell to 2,1
   this.col = {
-    first: (key == '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE' && index == 0) ? 2 : 1,
+    first: 1,
     last: this.g.getLastColumn(),
     num: this.g.getLastColumn()
   };
@@ -79,7 +87,7 @@ function Sheet(key, index) {
   this.data = getRowsData(this.g, this.g.getRange(this.row.first, this.col.first, this.row.last, this.col.last), 1);
 
   //create array of header names
-  this.headers = this.g.getRange(1, 1, 1, this.col.last).getValues()[0];
+  this.headers = normalizeHeaders(this.g.getRange(1, 1, 1, this.col.last).getValues()[0]);
 
    //*ACCESSOR METHODS
 
@@ -128,7 +136,7 @@ function Sheet(key, index) {
 
   this.setRange = function (range){
     this.g
-      .getRange(this.row.first, this.col.first, this.length, range[0].length)
+      .getRange(this.row.first, this.col.first, range.length, range[0].length)
       .setValues(range);
   };
 
@@ -237,7 +245,7 @@ function arrayTranspose(data) {
   return ret;
 }
 
-//*MODIFY ARRAY PROTOTYPE
+//*UTILITY FUNCTIONS*
 
 //add dedupe method to Array prototype
 Array.prototype.dedupe = function() {
@@ -257,10 +265,37 @@ Array.prototype.dedupe = function() {
     return this;
 };
 
+//add increment date function to Date object prototype
 Date.prototype.incrementDate = function(numDays){
-  this.setDate(this.getDate() + numDays);
-  return this;
+  return new Date(this.getTime() + numDays*(24 * 60 * 60 * 1000));
+  //return this;
+};
+
+//add get week start function to Date prototype (will return date object for the Monday of the week any given date is in)
+Date.prototype.getWeekStart = function(){
+  var day = this.getDay(),
+    diff = this.getDate() - day + (day == 0 ? -6:1); // adjust when day is sunday
+  return new Date(this.setDate(diff));
+};
+
+Date.prototype.getWeekMap = function(){
+  var weekStart = this.getWeekStart();
+  return {
+    mon: weekStart,
+    tue: weekStart.incrementDate(1),
+    wed: weekStart.incrementDate(2),
+    thu: weekStart.incrementDate(3),
+    fri: weekStart.incrementDate(4),
+    sat: weekStart.incrementDate(5),
+    sun: weekStart.incrementDate(6)
+  }
+};
+
+Date.prototype.getDayName = function(){
+  var dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  return dayNames[this.getDay()];
 }
+
 
 function toast(string){
   SpreadsheetApp.getActiveSpreadsheet().toast(string);
@@ -289,10 +324,12 @@ function initUpdateViewUi(){
 
   //get sheet and sheet index to determine view to pass to click handler
   var sheetName = SpreadsheetApp.getActiveSheet().getName(),
-    sheet = constructSheet('Schedule')[sheetName];
-
+    sheet = constructSheet('Schedule')[sheetName],
   //retrieve view's current start and end dates from sheet data
-  
+    curStart = sheetName == 'grid' ? new Date() : sheet.data[0].start.getWeekStart(),
+    curEnd = sheetName == 'grid' ? new Date() : curStart.incrementDate(6);
+
+  /*   
   //store date of first shift's start time as default 'start' and 'end' of view
   var data = sheet.data,
     curStart = data[0].start,
@@ -306,6 +343,7 @@ function initUpdateViewUi(){
       curEnd = data[i].start;
     }
   }
+  */
     
   //construct ui app
   var app = UiApp.createApplication().setTitle('Update Schedule View').setWidth(200),
@@ -363,6 +401,130 @@ function initUpdateViewUi(){
   SpreadsheetApp.getActiveSpreadsheet().show(app);
 };
 
+
+function getIdsFromNames(model, names){
+  var ids = [];
+  for (var i = 0; i < names.length; i++){
+    ids.push(getIdFromName(model, names[i]));
+  }
+  return ids; 
+};
+
+function getIdFromName(model, name){
+  for (var i = 0; i < model.data.length; i++){
+    if (model.data[i].name == name){
+      return model.data[i].id;
+    }
+  }
+};
+
+function getRecordsByIds(model, ids){
+  for (var i = 0; i < ids.length; i++){
+    records.push(getRecordById(model, id));
+  }
+  return records;
+};
+
+function getNamesFromIds(model, ids){
+  var names = [];
+  for (var i=0; i < ids.length; i++){
+    names.push(model.data[ids[i]].name);
+  }
+  Logger.log('names: ' + names);
+  return names;
+};
+
+
+function getRefIdsFromRecords(records, refName){
+  var refIds = [];
+  for (var i = 0; i < records.length; i++){
+    refIds.push(getRefIdFromRecord(records[i], refName));
+  }
+  return refIds;
+};
+
+function getRefIdFromRecord(record, refName){
+  return record[refName + 'id'];
+}
+
+
+function setFilters(params, view){
+  filters = ['date'];
+  if (view == 'update'){
+    filters.push('update')
+  } else if (view == 'lookup'){
+    if (params.riders != 'all' & params.restaurants != 'all'){
+      filters.push('lookupDefault');
+    } else if (params.riders == 'all'){
+      filters.push('lookupAllRiders');
+    } else {
+      filters.push('lookupAllRestaurants')
+    }
+  } else {
+    filters.push('default');
+  }
+  return filters;
+}
+
+function getRecordsByParams(model, refIds, params, filters){
+
+/* where refIds are of the form:
+refIds = {
+  riders: [id, id, id],
+  restaurants: [id, id, id]
+}
+
+refIds = [
+  {rider: , rest: }
+]
+
+params = {
+  
+}
+
+*/
+  var records = [];
+  for (var i in refIds){
+    for (var j = 0; j < model.data.length; j++){
+      if (applyFilter(model.data[j], refIds, filters)){
+        continue;
+      } else {
+        getRecordById(refIds[i][j].id);
+      }
+    }
+
+  }
+  return records;
+};
+
+function getRecordById(model, id){
+  return model.data[id];
+};
+
+/*
+function applyFilters(record, refIds, params, filters){
+  var filterMap = {
+    default: ((refIds[rest].indexOf(record.restaurantid) < 0) && (refIds[rider].indexOf(record.restaurantid) < 0)),//filters out shifts w/o rider or rest
+    date: (record.start < params.start && record.start.getDate() < params.start.getDate()) || (record.start > record.end && record.start.getDate() > record.end.getDate()),
+    update: record.status == 'confirmed' || record.status == 'cancelled',
+    lookupAllRiders: refIds[rest].indexOf(record.restaurantid) < 0,
+    loookupAllRestaurants: refIds[rider].indexOf(record.restaurantid) < 0
+  };
+  for (var i = 0; i < filters.length; i+){
+    for (var j in filterMap){
+      if (filterMap[filters[i]]){
+        return true;
+      }
+    }
+  }
+};
+*/
+
+
+
+
+
+
 ///// vvv UPDATE VIEW MAIN FUNCTION vvv //////
 
 function updateView(e){
@@ -387,9 +549,13 @@ function updateView(e){
     allRiders = e.parameter.riders === 'all' ? true : false;
   //if restaurant and rider ids are found, retrieve corresponding shifts and populate view with them
   if (restaurantIds.length > 0 && riderIds.length > 0) {
-    shifts = getShifts(e.parameter.start, e.parameter.end, restaurantIds, riderIds, allRests, allRiders, e.parameter.view);
-    if (shifts.length > 0){
-      setScheduleRange(shifts, e.parameter.view);      
+    shiftList = getShiftList(e.parameter.start, e.parameter.end, restaurantIds, riderIds, allRests, allRiders, e.parameter.view);
+    if (shiftList.length > 0){
+      var weekMap = shiftList[0].start.getWeekMap();
+      for (var i in weekMap){
+        Logger.log('weekmap['+i +']: ' + weekMap[i]);
+      }
+      e.parameter.view == 'grid' ? setGridView(shiftList, weekMap) : setScheduleView(shiftList, e.parameter.view);      
     }
     //if not, terminate execution and throw the appropriate error message
   } else {
@@ -455,9 +621,9 @@ function getIds(data, names){
 };
 
 
-function getShifts(start, end, restaurantIds, riderIds, allRests, allRiders, view){
+function getShiftList(start, end, restaurantIds, riderIds, allRests, allRiders, view){
   var data = constructSheet('Shifts').shifts.data,
-    shifts = [];
+    shiftList = [];
   for (var i = 0; i < data.length; i++){
     //filter out shifts with dates outside the start/end span given in params
     if (
@@ -477,222 +643,272 @@ function getShifts(start, end, restaurantIds, riderIds, allRests, allRiders, vie
       // if all riders are specified in params, retrieve shifts with restaurants matching those in params
       if (allRiders){
         if (restaurantIds.indexOf(data[i].restaurantid) >=0){
-          shifts.push(data[i]);//add retrieved shifts to shifts[]
+          shiftList.push(data[i]);//add retrieved shifts to shifts[]
         }
       //if all restaurants are specified in params, retrieve shifts with riders matching those in params        
       } else if (allRests){
         if (riderIds.indexOf(data[i].riderid) >= 0){
-          shifts.push(data[i]);
+          shiftList.push(data[i]);
         }
       //if specific restaurants *and* riders are specified, use an *exclusive* search to retrieve shifts matching restaurants *and* riders
       } else {
         if (restaurantIds.indexOf(data[i].restaurantid) >= 0 && riderIds.indexOf(data[i].riderid) >= 0){
-          shifts.push(data[i]);
+          shiftList.push(data[i]);
         }
       }
     //in all views other than lookup, use an *inclusive* search to retrieve shifts matching restaurants *or* riders in params  
     } else {
       if (restaurantIds.indexOf(data[i].restaurantid) >= 0 || riderIds.indexOf(data[i].riderid) >= 0){
-        shifts.push(data[i]);
+        shiftList.push(data[i]);
       }
     }
   }
-  if (view == 'update' && shifts.length == 0){
+  if (view == 'update' && shiftList.length == 0){
     toast('There are no hanging shifts!');
   } else {
-    return shifts;
+    return shiftList;
   }
 };
 
-function setScheduleRange(shifts, view){
-  var sheet = constructSheet('Schedule')[view],
+
+
+function setScheduleView(shiftList, view){
+  var schedule = constructSheet('Schedule')[view], 
     range = [];
-  if (view == 'grid'){
-    range = setGrid(shifts);
-  }
-  //clear current view
-  sheet.g.getRange(sheet.row.first, sheet.col.first, sheet.row.num, sheet.col.num).clear({contentsOnly:true});
-  for (var i = 0; i < shifts.length; i++){
+  for (var i = 0; i < shiftList.length; i++){
     range[i] = [
-      shifts[i].id,
-      shifts[i].start,
-      shifts[i].end,
-      shifts[i].am,
-      shifts[i].pm,
-      shifts[i].restaurantid,
-      shifts[i].restaurantname,
-      shifts[i].riderid,
-      shifts[i].ridernick,
-      shifts[i].status,
-      shifts[i].urgency,
-      shifts[i].billing,
-      shifts[i].calendarid
+      shiftList[i].id,
+      shiftList[i].start,
+      shiftList[i].end,
+      shiftList[i].am,
+      shiftList[i].pm,
+      shiftList[i].restaurantid,
+      shiftList[i].restaurantname,
+      shiftList[i].riderid == undefined ? '' : shiftList[i].riderid,
+      shiftList[i].ridernick == undefined ? '' : shiftList[i].ridernick,
+      shiftList[i].status,
+      shiftList[i].urgency,
+      shiftList[i].billing,
+      shiftList[i].eventid
     ];
+  }  
+  setSkedCellMap(shiftList, view);
+  schedule.clearRange();
+  schedule.setRange(range);
+};
+
+function setScheduleViewNEW(shiftList, view){
+  var schedule = constructSheet('Schedule')[view], 
+    range = [];
+  for (var i = 0; i < shiftList.length; i++){
+    var shift = shiftList[i];
+    range[i] = [
+      shift.start.getDayName(), //day
+      shift.start.getTime(), //start time
+      shift.end.getTime(), //end time
+      shift.getPeriod(shift), //period
+      shift.restaurantname, //restaurant name
+      shift.ridernick == undefined ? '' : shiftList[i].ridernick, //rider nickname (blank if undefined)
+      shift.status,
+      shiftList[i].urgency,
+      shiftList[i].billing
+    ];
+  }  
+  setSkedCellMap(shiftList, view);
+  schedule.clearRange();
+  schedule.setRange(range);
+};
+
+function getPeriod(shift){
+  if (shift.am && shift.pm){
+    return 'AM/PM';
+  } else if (shift.am){
+    return 'AM';
+  } else {
+    return 'PM';
   }
-  sheet.g
-  .getRange(sheet.row.first, sheet.col.first, range.length, range[0].length)
-  .setValues(range);
+}
+
+function setSkedCellMap(shiftList, view){
+  var cellmap = constructSheet('ScheduleCellMaps')[view],
+    range = [];
+  for (var i = 0; i< shiftList.length; i++){
+    range.push([
+      i,//id
+      i + 2, //row
+      shiftList[i].id//shiftid
+    ]);
+  }
+  cellmap.clearRange();
+  cellmap.setRange(range);
 };
 
 ////// vvv SET GRID MAIN FUNCTION vvv //////
 
-function setGrid(shifts, restaurantIds){
-  var cellMap = constructSheet('Schedule').cellmap.data;
+function setGridView(shiftList, weekMap){
+  var cellMap = constructSheet('ScheduleCellMaps').grid.data,
     grid = constructSheet('Schedule').grid,
-    restaurants = getRestaurants(shifts),
-    gShifts = getGShifts(restaurants),
-    range = getGRange(gShifts);
+    restaurants = constructSheet('Restaurants').info,
+    restaurantNames = getNamesFromIds(restaurants, getRefIdsFromRecords(shiftList, 'restaurant')).dedupe().sort(),
+    gridMap = getGridMap(shiftList, weekMap, restaurantNames),
+    range = getGridRange(shiftList, gridMap);
   
+  grid.clearRange();
   grid.setRange(range);
   //highlightShifts(range);
-  setCellMap(gShifts);
+  setGridCellMap(gridMap, restaurantNames);
 };
 
 ////// ^^^ SET GRID MAIN FUNCTION ^^^ //////
 
 ////// vvv SET GRID HELPER FUNCTIONS vvv //////
 
-function getRestaurants(shifts){
-  //construct de-duped array of restaurants with shifts this week
-  for (i = 0; i < shifts.length){
-    restaurants.push(getNames(restaurantIds)).dedupe().alphabetical();
-  }  
-};
 
-function getGShifts(shifts, restaurants){
-  var gShifts = [];
-  for (i = 0; i < restaurants.length){
-    gShifts.push({
-      restaurants[i]: {
-        mon: {
-          am: {shifts: [], col: 2}, 
-          pm: {shifts: [], col: 3}
-        },
-        tue: {
-          am: {shifts: [], col: 4}, 
-          pm: {shifts: [], col: 5}
-        },
-        wed: {
-          am: {shifts: [], col: 5}, 
-          pm: {shifts: [], col: 6}
-        },
-        thu: {
-          am: {shifts: [], col: 7}, 
-          pm: {shifts: [], col: 8}
-        },
-        fri: {
-          am: {shifts: [], col: 9}, 
-          pm: {shifts: [], col: 10}
-        },
-        sat: {
-          am: {shifts: [], col: 11}, 
-          pm: {shifts: [], col: 12}
-        },
-        sun: {
-          am: {shifts: [], col: 13}, 
-          pm: {shifts: [], col: 14}
-        },        
-      }
-    }); 
-    populateGShiftArrays(gShifts[i]);
+function getGridMap(shiftList, weekMap, restaurantNames){
+  var gridMap = {};
+  for (var i = 0; i < restaurantNames.length; i++){
+    gridMap[restaurantNames[i]] = {
+      mon: {
+        am: {shiftIds: [], col: 2}, 
+        pm: {shiftIds: [], col: 3}
+      },
+      tue: {
+        am: {shiftIds: [], col: 4}, 
+        pm: {shiftIds: [], col: 5}
+      },
+      wed: {
+        am: {shiftIds: [], col: 6}, 
+        pm: {shiftIds: [], col: 7}
+      },
+      thu: {
+        am: {shiftIds: [], col: 8}, 
+        pm: {shiftIds: [], col: 9}
+      },
+      fri: {
+        am: {shiftIds: [], col: 10}, 
+        pm: {shiftIds: [], col: 11}
+      },
+      sat: {
+        am: {shiftIds: [], col: 12}, 
+        pm: {shiftIds: [], col: 13}
+      },
+      sun: {
+        am: {shiftIds: [], col: 14}, 
+        pm: {shiftIds: [], col: 15}
+      }       
+    }; 
   }
-  return gShifts;
+  setGridShiftIds(shiftList, weekMap, gridMap);
+  return gridMap;
 };
 
-function populateGShiftArrays(shifts, gShift){
-  for (var rest in gShift){
-    for (var day in rest){
-      for (var period in day){
-        gShifts[rest][day][period] = getGShiftData(shifts, rest, day, period);
+
+
+function setGridShiftIds(shiftList, weekMap, gridMap){
+  for (var rest in gridMap){
+    for (var day in gridMap[rest]){
+      for (var period in gridMap[rest][day]){
+        gridMap[rest][day][period].shiftIds = getGridShiftIds(shiftList, weekMap, rest, day, period);
       }
     }
   }
 };
 
-function gGShiftData(shifts, rest, day, period){
-  var am = (period == 'am') ? true : false,
-    pm = (am) ? false : true,
-    dates = {
-      mon: weekStart,
-      tue: weekStart.incrementDate(1),
-      wed: weekStart.incrementDate(2),
-      thu: weekStart.incrementDate(3),
-      fri: weekStart.incrementDate(4),
-      sat: weekStart.incrementDate(5),
-      sun: weekStart.incrementDate(6)
-    },
-    date = dates[day],
-    gShiftData= [];
+//vvv translate to 
 
-  for (var i = 0; i < shifts.length; i++){
-    var shift = shifts[i];
+function getGridShiftIds(shiftList, weekMap, rest, day, period){
+  var am = (period == 'am') ? true : false,
+    pm = !am,
+    date = weekMap[day],
+    gsIds= [];
+
+  for (var i = 0; i < shiftList.length; i++){
+    var shift = shiftList[i];
     if (
+      shift.restaurantname == rest &&
       shift.am == am && 
       shift.pm == pm && 
       shift.start.getYear() == date.getYear() &&
       shift.start.getMonth() == date.getMonth() &&
       shift.start.getDate() == date.getDate()
     ) {
-      gShiftData.push(shift);
+      gsIds.push(shift.id);
     }
   }
-  return gShiftData;
+  return gsIds;
 };
 
-function abbreviateStatus(status){
-  abbrevs = {
+
+function getGridRange(shiftList, gridMap){
+  Logger.log('running getGridRange()');
+  var range = [];
+  for (var rest in gridMap){
+    range.push(getGridRow(shiftList, gridMap[rest], rest));
+  }
+  return range;
+};
+
+function getGridRow(shiftList, gridRow, rowName){
+  Logger.log('running getGridRow()');
+  var row = [];
+  row[0] = rowName
+  for (var day in gridRow){
+    for (var period in gridRow[day]){
+      row.push(getGridCellFromShiftIds(shiftList, gridRow[day][period].shiftIds));
+    }
+  }
+  return row;
+};
+
+
+function getGridCellFromShiftIds(shiftList, shiftIds){
+  var cell = [];
+  for (var i = 0; i < shiftIds.length; i++){
+    var shift = shiftList[shiftIds[i]],
+      rider = shift.ridernick == undefined ? '' : shift.ridernick,
+      status = getCodeFromStatus(shift.status);
+    cell.push(rider + ' ' + status);
+  }
+  cell = cell.join(', ');
+  return cell;
+};
+
+
+function getCodeFromStatus(status){
+  var codes = {
     unassigned: '-u',
+    assigned: '-a',
     delegated: '-d',
     confirmed: '-c',
     cancelled: '-x'
   }
+  return codes[status];
 };
 
-function getGRange(gShifts){
-  var range = [];
-  for (var i = 0; i < gShifts.length; i++){
-      var gShift = gShifts[i];
-      range[i] = [
-        gShift.rest,
-        gShift.mon.am,
-        gShift.mon.pm,
-        gShift.tue.am,
-        gShift.tue.pm,
-        gShift.wed.am,
-        gShift.wed.pm,
-        gShift.thu.am,
-        gShift.thu.pm,
-        gShift.fri.am,
-        gShift.fri.pm,
-        gShift.sat.am,
-        gShift.sat.pm,
-        gShift.sun.am,
-        gShift.sun.pm
-      ]
-    }
-  }
-};
 
-function setCellMap(gShifts){
-  var cellmap = constructSheet('Schedule').cellmap;
-    range = [],
-  //build cellmap range from gShift data
-  for (var i = 0; i < gShifts.length; i++){
-    for (var rest in gShifts[i]){
-      for (var day in gShifts[i][rest]){
-        for (var period in gShifts[i][rest][day]){
-          for (var j = 0; j < gShifts[i][rest][day][period].shifts.length; j++){
-            range.push([
-              restaurants.indexOf(rest),//row
-              gShifts[i][rest][day][period].col//col
-              gShifts[i][rest][day][period].shifts[j]//index 
-              gShifts[i][rest][day][period].shifts[j].id//shiftId
-            ]);
-          }
+
+
+function setGridCellMap(gridMap, restaurantNames){
+  var cellmap = constructSheet('ScheduleCellMaps').grid,
+    range = [];
+  Logger.log('cellmap.data.length:' + cellmap.data.length);
+
+  //build cellmap range from gridRow data
+  for (var rest in gridMap){
+    for (var day in gridMap[rest]){
+      for (var period in gridMap[rest][day]){
+        for (var j = 0; j < gridMap[rest][day][period].shiftIds.length; j++){
+          range.push([
+            restaurantNames.indexOf(rest) + 2,//row
+            gridMap[rest][day][period].col,//col
+            j,//index 
+            gridMap[rest][day][period].shiftIds[j]//shiftId
+          ]);
         }
       }
     }
   }
+
   //prepend cellMap id to first cell of each row in range
   for (var i = 0; i < range.length; i++){
     range[i].unshift(i);
@@ -700,60 +916,153 @@ function setCellMap(gShifts){
   //clear cellmap worksheet target range
   cellmap.clearRange();
   //write range to cellmap worksheet
-  cellmap.setRange();
+  cellmap.setRange(range);
 };
 
 function highlightShifts(){
-
+  //check if 
 };
-
 ////// ^^^ SET GRID HELPER FUNCTIONS ^^^ //////
-
-
-
-function setCellMap(){};
-
-
-
-
-
-
 ////// ^^^ UPDATE VIEW HELPER FUNCTIONS ^^^ ///////
 
-
+////// vvv UPDATE SHIFTS MAIN FUNCTION vvv ///////
 function updateShifts(){
   var shifts = constructSheet('Shifts').shifts,
-    schedule = constructSheet('Schedule')[SpreadsheetApp.getActiveSheet().getName()];
-  //copy shift data from rows in view that match rows in model by id 
+    view = SpreadsheetApp.getActiveSheet().getName(),
+    schedule = constructSheet('Schedule')[view],
+    shiftList = getShiftListFromView(shifts, schedule, view);  
+  Logger.log('view: ' + view);
+  Logger.log('schedule contents:')
   for (var i = 0; i < schedule.data.length; i++){
-    var id = schedule.data[i].id;
-    //if no shift exists in model w/ id matching schedule, create and append a new row to the model w/ data from the sked
-    if (shifts.length < id + 2){
-      shifts.appendRow(schedule, i + 2);
+    for (var j in schedule.data[i]){
+      Logger.log('schedule.data['+i+']['+j+']: ' + schedule.data[i][j]);
+    }
+  } 
+  
+  setShifts(shifts, shiftList);
+
+  //CALLBACKS
+  toast('Shifts model successfully updated!');
+  //updateAssignments();
+  updateCalendars(shifts, shiftList);//pass schedule view as an argument to avoid having to call .getActiveSheet() again
+};
+////// ^^^ UPDATE SHIFTS MAIN FUNCTION ^^^ ///////
+
+////// vvv UPDATE SHIFTS HELPER FUNCTIONS vvv ///////
+
+function getShiftListFromView(shifts, schedule, view){
+  Logger.log('running getShiftListFromMap');
+  var map = constructSheet('ScheduleCellMaps')[view],
+    riders = constructSheet('Riders').info,
+    shiftList = [];
+  Logger.log('map.data.length: ' + map.data.length);
+  for (var i = 0; i < map.data.length; i++){
+    var shiftid = map.data[i].shiftid,
+      scheduleid = map.data[i].id,
+      volatileData = getVolatileData(schedule, riders, map.data[i], view);
+    Logger.log('volatileData for map row'+i+': ');
+    for (var j in volatileData){
+      Logger.log('volatileData['+j+']: ' + volatileData[j]);
+    }
+    shiftList[i] = {};
+/*
+    for (var j in shifts.data[shiftid]){
+      Logger.log('j: ' + j);
+      Logger.log('in volatileData?: ' + (j in volatileData));
+      shiftList[i][j] = (j in volatileData) ? volatileData[j] : shifts.data[shiftid][j];
+      Logger.log('shiftList['+i+']['+j+']: ' + shiftList[i][j]);
+    }
+ */
+    for (var j in volatileData){
+      shiftList[i][j] = volatileData[j];
+    }
+    for (var j in shifts.data[shiftid]){
+      if (!(j in volatileData)){
+        shiftList[i][j] = shifts.data[shiftid][j];
+      }
+    }
+  }
+
+  return shiftList;
+};
+
+function getVolatileData(schedule, riders, m, view){ 
+  if (view != 'grid'){
+    return getVolatileDataFromScheduleRow(schedule, riders, m);
+  } else {
+    return getVolatileDataFromGridCell(schedule, riders, m); 
+  }
+};
+
+function getVolatileDataFromScheduleRow(schedule, riders, m){
+  var row = schedule.data[m.id];
+  return {
+    id: m.shiftid,
+    riderid: getIdFromName(riders, row.ridernick),
+    ridernick: row.ridernick,
+    status: row.status,
+    urgency: row.urgency,
+    billing: row.billing
+  };
+};
+
+function getVolatileDataFromGridCell(schedule, riders, m){
+  var cell = schedule.data[m.row - schedule.row.first][schedule.headers[m.col - schedule.col.first]].split(', '),
+    str = cell[m.index],
+    ridernick = str.slice(0, str.indexOf('-')).trim(),
+    code = str.slice(str.indexOf('-'), str.length).trim(),
+    riderid = getIdFromName(riders, ridernick);
+    Logger.log('getIdFromName(riders, '+ ridernick+'): ' + riderid);
+  return {
+    id: m.shiftid,
+    ridernick: ridernick,
+    riderid: getIdFromName(riders, ridernick),
+    status: getStatusFromCode(code)
+  }
+};
+
+function getStatusFromCode(code){
+  var statuses = {
+    '-u': 'unassigned',
+    '-a': 'assigned', 
+    '-d': 'delegated',
+    '-c': 'confirmed',
+    '-x': 'cancelled'
+  }
+  return statuses[code];
+};
+
+function setShifts(shifts, shiftList){
+  //copy shift data from rows in view that match rows in model by id 
+  for (var i = 0; i < shiftList.length; i++){
+    var id = shiftList[i].id;
+    //if no shift exists in model w/ id matching shiftList, create and append a new row to the model w/ data from the sked
+    if (shifts.data.length < id + 1){
+      shifts.appendRow(shiftList, i + 2);
     } else {
       //overwrite all cell data in model shifts matched to view shifts by id whose old values differ from new values
-      for (var k in schedule.data[i]){
-        if (schedule.data[i][k] != shifts.data[id][k]){
-          shifts.updateCell(shifts.getRowNum(shifts.data[i].id), shifts.getColNum(k), schedule.data[i][k]);
+      for (var k in shiftList[i]){
+        Logger.log('shiftList['+i+']['+k + ']: ' + shiftList[i][k]);
+        if (shiftList[i][k] != shifts.data[id][k]){
+          Logger.log('writing shiftList['+i+']['+k+'] to shifts.data['+id+']['+k+']')
+          shifts.updateCell(shifts.getRowNum(id), shifts.getColNum(k), shiftList[i][k]);
         }
       }
     }
-  }    
-  //CALLBACKS
-  toast('Shifts spreadsheet successfully updated!');
-  //updateAssignments();
-  updateCalendars(schedule);//pass schedule view as an argument to avoid having to call .getActiveSheet() again
-  toast('Edits successfully saved!');
+  } 
 };
 
+
+////// ^^^ UPDATE SHIFTS HELPER FUNCTIONS ^^^ ///////
+
+
 ////// vvv UPDATE CALENDAR MAIN FUNCTION vvv //////
-function updateCalendars(schedule){
+function updateCalendars(shifts, shiftList){
   var sheets = constructSheets(['Restaurants', 'Shifts']);
-    shifts = sheets.Shifts.shifts;
-    restaurants = sheets.Restaurants.info.data,
-    restIds = getRestIds(schedule),
-    calendars = getCals(schedule, restIds),
-    events = getEvents(schedule);
+    restaurants = sheets.Restaurants.info,
+    restIds = getRefIdsFromRecords(shiftList, 'restaurant').dedupe(),
+    calendars = getCals(shiftList, restIds);
+    //events = getEvents(shiftList);
     /*
     //check to see if calendars exist for all restaurants being updated
     if (!calExists(restaurants, schedule[i].restaurantid)){
@@ -763,18 +1072,23 @@ function updateCalendars(schedule){
     */
   
   //loop through all shifts in view
-  for (var i = 0; i < schedule.data.length; i++){
-    var rider = schedule.data[i].ridernick,
-      status = schedule.data[i].status,
-      restId = schedule.data[i].restaurantid,
-      calId = schedule.data[i].calendarid,
-      shift = schedule.data[i];
+  for (var i = 0; i < shiftList.length; i++){
+    var restId = shiftList[i].restaurantid,
+      eventId = shiftList[i].eventid,
+      statusCode = getStatusCode(shiftList[i].ridernick,shiftList[i].status);
+      Logger.log('restId: ' + restId);
+      Logger.log('eventId:' + eventId);
+      Logger.log('statusCode');
     //check to see if calendar events exist for all shifts
-   (calId !== '' && calId !== 'undefined' && calId !== undefined) ?
+   if (eventId !== '' && eventId !== 'undefined' && eventId !== undefined){
       //if a event exists, update it
-      getEventById(calendars, restId, calId).setTitle(getStatusCode(rider, status)) :
+      Logger.log('updating the event with eventId' + eventId);
+      getEventById(calendars, restId, eventId).setTitle(statusCode);
+   } else {
       //if not, create one
-      createEvent(calendars[shift.restaurantid].cal, schedule, shifts, shift, getStatusCode(rider, status));    
+      Logger.log('creating an event for the shift with shiftId: ' + shift.id);
+      createEvent(calendars[shift.restaurantid].cal, shiftList, shiftList[i], statusCode);        
+   }
   }
   toast('Calendar successfully updated!');
 
@@ -784,97 +1098,84 @@ function updateCalendars(schedule){
 
   //**CLOSURES
 
-  function getRestIds(schedule){
-    var restIds = [];
-    for (var i = 0; i < schedule.data.length; i++){
-      restIds.push(schedule.data[i].restaurantid);
-    };
-    return restIds.dedupe();
-  };
 
-  function getCals(schedule, restIds){
+  function getCals(shiftList, restIds){
+    for (var i = 0; i < shiftList.length; i++){
+      for (var j in shiftList[i]){
+        Logger.log('shiftList['+i+']['+j+']' + shiftList[i][j]);
+      }
+    }
     var cals = {};
     for (var i = 0; i < restIds.length; i++){
-      var calObj = CalendarApp.getCalendarById(getCalId(restIds[i]));
+      var calObj = CalendarApp.getCalendarById(restaurants.data[restIds[i]].calendarid);
       cals[restIds[i]] = {
         cal: calObj,
-        events: getEvents(schedule, calObj, restIds[i]) 
+        events: getEventsFromCalendar(shiftList, calObj, restIds[i]) 
       };
+    }
+    for (var i in cals){
+      for (var j in cals[i].events){
+          Logger.log('cals['+i+'].events['+j+'] ' + cals[i].events[j]);
+      }
     }
     return cals;
   };
 
-  function getEvents(schedule, calendar, restId){
-     var events = {};
+
+  function getEventsFromCalendar(shiftList, calendar, restId){
+    Logger.log('running getEvents() for restId: ' + restId);
+    var events = {};
     //construct events obeject w/ event id as key and event object as value
-    for (var i = 0; i < schedule.data.length; i++){
-      var calId = schedule.data[i].calendarid;
-      //skip rows with shifts for restaurants other than the one for which events are being retrieved
-      if (restId != schedule.data[i].restaurantid){
+    for (var i = 0; i < shiftList.length; i++){
+      var eventId = shiftList[i].eventid;
+      if (
+            //skip rows with shifts for restaurants other than the one for which events are being retrieved
+            (restId != shiftList[i].restaurantid)||
+            //skip rows without pre-existing events
+            (eventId === ''|| eventId === 'undefined' || eventId === undefined)
+          ){
         continue;
-      //skip rows without pre-existing events
-      } else if (calId === ''|| calId === 'undefined' || calId === undefined) {
-        continue;
-      //for rows matching the restaurant and containing event ids, retrieve calendar events corresponding to the restaurant and the shifts's time
+        //for rows matching the restaurant and containing event ids, retrieve calendar events corresponding to the restaurant and the shifts's time
       } else {
+        Logger.log('Match found! eventId: ' + eventId);
         //store temp array of all events matching the shift's start and end time
-        var tempEvents = calendar.getEvents(schedule.data[i].start, schedule.data[i].end);
+        var tempEvents = calendar.getEvents(shiftList[i].start, shiftList[i].end);
+        Logger.log('tempEvents.length:' + tempEvents.length);
         for (var j = 0; j < tempEvents.length; j++){
           //add each event to the events object with the event id as key and the event object as value
           events[tempEvents[j].getId()] = tempEvents[j]  
         }        
       }
     }
-
     return events;
   };
 
   function getEventById(calendars, restId, eventId){
+    Logger.log('running getEventById');
+    Logger.log('calendars['+restId+'].events['+eventId+']: ' + calendars[restId].events[eventId]);
     return calendars[restId].events[eventId];
   };
 
-  function getCalIds(restaurants, schedule){
-    var calIds = [];
-    for (var i = 0; i < schedule.data.length; i++){
-      calIds.push(getCalId (restaurants, schedule.data[i].restaurantid));
-    }
-    return calIds;
-  }
-
-  function getCalId(restId){
-    for (var i = 0; i < restaurants.length; i++){
-      if (restaurants[i].id == restId) {
-        return restaurants[i].calendarid;
-      }  
-    }
-  };
-
-  function createEvent(calendar, schedule, shifts, shift, statusCode){
+  function createEvent(calendar, shifts, shift, statusCode){
     var event = calendar.createEvent(statusCode, shift.start, shift.end); 
-    appendEventId(schedule, shifts, shift.id, event.getId());
+    appendEventId(shifts, shift.id, event.getId());
   }
 
-  function appendEventId(schedule, shifts, shiftId, eventId){
-    //write event to Schedule model
-    for (var i = 0; i < schedule.data.length; i++){
-      if (schedule.data[i].id == shiftId){
-        schedule.updateCell(schedule.getRowNum(shifts.data[i].id), schedule.getColNum('calendarid'), eventId);
-      }
-    }    
-
-    //write event id to Shifts model
-    for (var i = 0; i < shifts.data.length; i++){
-      if (shifts.data[i].id == shiftId){
-        shifts.updateCell(shifts.getRowNum(shifts.data[i].id), shifts.getColNum('calendarid'), eventId);
-      }
+  function appendEventId(shifts, shiftId, eventId){
+    //if in schedule view, update eventid column
+    var view = SpreadsheetApp.getActiveSheet().getName()
+    if (view != 'grid'){
+      var schedule = constructSheet('Schedule')[view];
+      schedule.updateCell(schedule.getRowNum(shiftId))
     }
-
+    shifts.updateCell(shifts.getRowNum(shiftId), shifts.getColNum('eventid'), eventId);
   };
 
   function getStatusCode(rider, status){
     var statusCodes = {
-      unassigned: '???',
-      delegated: '**' + rider + '??',
+      unassigned: '*unassigned',
+      assigned: '*' + rider + '? (a)',
+      delegated: '**' + rider + '?? (d)',
       confirmed: rider + ' (c)',
       cancelled: 'CANCELLED'
     };
@@ -882,23 +1183,14 @@ function updateCalendars(schedule){
   };
 };
 
-
-
-  function calExists(restaurants, restaurantId){
-    if(CalendarApp.getCalendarById(getCalId(restaurants, restaurantId)) !== undefined){
+  function calExists(restaurantId){
+    if(CalendarApp.getCalendarById(restaurants.data[restaurantId].calendarid) !== undefined){
       return true;
     } else {
       return false;
     }
   };
 
-
-function testCalIds(){
-  var restaurants = constructSheet(['Restaurants']).info.data;
-    for (var i = 0; i < restaurants.length; i++){
-      Logger.log('db calId: ' + restaurants[i].calendarid +'\ndb name: ' + restaurants[i].name +  '\ngoogle name: ' + CalendarApp.getCalendarById(restaurants[i].calendarid).getName());
-    }
-};
 
 
 function updateAssignments(sheets){
