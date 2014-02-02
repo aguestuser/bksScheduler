@@ -320,6 +320,8 @@ function getDayNum(dayName){
   return dayNames.indexOf(dayName);
 };
 
+/////////
+
 
 function getIdsFromNames(model, names){
   var ids = [];
@@ -372,129 +374,14 @@ function getRefIdsFromRecords(records, refName){
 
 function getRefIdFromRecord(record, refName){
   return record[refName + 'id'];
-}
-
-
-
-function applyFilters(record, refIds, params, filters){
-  var filterMap = {
-    default: ((refIds[rest].indexOf(record.restaurantid) < 0) && (refIds[rider].indexOf(record.restaurantid) < 0)),//filters out shifts w/o rider or rest
-    date: (record.start < params.start && record.start.getDate() < params.start.getDate()) || (record.start > record.end && record.start.getDate() > record.end.getDate()),
-    update: record.status == 'confirmed' || record.status == 'cancelled',
-    lookupAllRiders: refIds[rest].indexOf(record.restaurantid) < 0,
-    loookupAllRestaurants: refIds[rider].indexOf(record.restaurantid) < 0
-  };
-  for (var i = 0; i < filters.length; i+){
-    for (var j in filterMap){
-      if (filterMap[filters[i]]){
-        return true;
-      }
-    }
-  }
 };
 
-var shifts = constructSheet('Shifts.shifts'),
-  restaurants = constructSheet('Restaurants.info'),
-  riders = constructSheet('Riders.info'),
-  params = e.parameter,
-  view = e.parameter.view,
-  refs = {restaurant: restaurants, rider: riders},
-  refIds = getRefIdsFromParams(params, refs),
-  srcModel = 'shifts',
-  filters = getFiltersFromParams(params, refIds, srcModel),
-  recordList = getRecordListFromRefIds(shifts, refIds, filters, srcModel);
-
-function getRefIdsFromParams(params, refs){
-  var refIds = {};
-  //loop through params, find keys matching keys in refs
-  for (var key in params){
-    //if match found, add ids for ref types to refids
-    if (key in refs){
-      //if params specify all entities, loop through entity model and add ids of all entities to an array of ref ids for that entity
-      if (params[key] == 'all'){
-        for (var i = 0; i < refs[key].data.length; i++){
-          refIds[key].push(refs[key].id);
-        }
-      } else { //otherwise, parse entity names from params and retrieve ids for each name
-        var names = params[key].split(', ');
-        for (var j = 0; j < names.length; j++){
-          var name = names[i];
-          refIds[key].push(getIdFromName(refs[key], name));
-        }
-      }
-    }
-  }
-  return refIds;
-};
-
-function getFiltersFromParams(params, refIds, srcModel){//only works for shifts model, will need to be adapted for avail (and other) models
-  var date = function(record, params){
-      return (record.start < params.start && record.start.getDate() < params.start.getDate());
-    };
-  if (srcModel == 'shifts'){
-    var view = params.view,
-      start = params.start,
-      end = params.end,
-      filters = {};
-    //filter out all records whose reference ids for a given entity type aren't contained in the array of reference ids for that entity type specified in the params (inclusive search)
-    update = function (record, refIds){
-      return (refIds[restaurant].indexOf(record.restaurantid) <= 0 && riderIds.indexOf(data[i].riderid) >= 0)
-    },  
-    getLookupFilter = function (params){
-      allRiders = params.riders == 'all' ? true : false,
-      allRestaurants = params.restaurants == 'all' ? true : false;
-      if (allRiders && allRestaurants){//use default filter
-        return null;
-      } else if (allRiders){
-        return function (record, refIds){//filter out records with restaurants that don't match restaurant refIds from params
-          return (refIds[restaurant].indexOf(record.restaurantid) >=0 );
-        };
-      } else if (allRestaurants){
-        return function (record, refIds){//filter out records with riders that don't match rider refIds from params
-          return (refIds[rider].indexOf(record.rider.id));
-        };
-      } else {//filter out all records that don't match on both rider id and restaurant id (exclusive search)
-        return function(record, refIcs){
-          (refIds[restaurant].indexOf(record.restaurantid) <= 0 || refIds[rider].indexOf(record.riderid) <= 0)
-        };
-      }
-    },
-    filters = {
-      grid: [date],
-      weekly: [date]
-      update: [date, update]
-      lookup: [date, getLookUpFilter(params)]
-    };
-  return filters[view];      
-  } else {
-    return date;
-  }
-};
-
-function getRecordListFromRefIds(model, refIds, filters){
-  var recordList = [];
-  for (var i = 0; i < model.data.length, i++){
-    var record = model.data[i];    
-    if (applyFilters(record, refIds, filters)){
-      continue;
-    } else {
-      recordList.push(record);
-    }
-  }
-};
-
-//cycle through all filter functions and return true if any of them return true
-function applyFilters(record, refIds, filters){
-  for (var i = 0; i < filters.length; i ++){
-    if (filters[i]){
-      return true;
-    }
-  }
-};
+////////
 
 
 
 
+/*
 //SET VIEW
 
  var view = SpreadsheetApp.getActiveSheet.getName(),
@@ -614,7 +501,7 @@ function View(viewName, sheet, model, refs){
 
 };
 
-
+*/
 
 //*CREATE MENU BUTTONS
 
@@ -700,12 +587,6 @@ function initUpdateViewUi(){
 };
 
 
-
-
-
-
-
-
 ///// vvv UPDATE VIEW MAIN FUNCTION vvv //////
 
 function updateView(e){
@@ -718,137 +599,170 @@ function updateView(e){
   Logger.log('view: ' + e.parameter.view);
 
   //store reference to active uiApp instance
-  var app = UiApp.getActiveApplication(),  
-    //consruct sheets
+  var app = UiApp.getActiveApplication(), 
+    //construct sheets
+    shifts = constructSheet('Shifts').shifts,
     restaurants = constructSheet('Restaurants').info,
     riders = constructSheet('Riders').info,
-    //retrieve ids for restaurants and riders given in params
-    restaurantIds = getIds(restaurants, e.parameter.restaurants.split(', ')),
-    riderIds = getIds(riders, e.parameter.riders.split(', ')),
-    //note if all restaurants or riders have been specified in params
-    allRests = e.parameter.restaurants === 'all' ? true : false,
-    allRiders = e.parameter.riders === 'all' ? true : false;
-  //if restaurant and rider ids are found, retrieve corresponding shifts and populate view with them
-  if (restaurantIds.length > 0 && riderIds.length > 0) {
-    shiftList = getShiftList(e.parameter.start, e.parameter.end, restaurantIds, riderIds, allRests, allRiders, e.parameter.view);
-    if (shiftList.length > 0){
-      var weekMap = shiftList[0].start.getWeekMap();
-      e.parameter.view == 'grid' ? setGridView(restaurants, riders, shiftList, weekMap) : setScheduleView(restaurants, riders, shiftList, e.parameter.view);      
+    //store parameters
+    params = e.parameter,
+    view = e.parameter.view,
+    //store reference models
+    srcModel = 'shifts',
+    refs = {restaurants: restaurants, riders: riders},
+    refIds = getRefIdsFromParams(params, refs),
+    //store filters
+    filters = getFiltersFromParams(params, refIds, srcModel);
+  
+  //if there were no errors retrieving reference ids, use them to retrieve a list of shifts
+  if (refIds.errors != undefined) {
+    for (var i = 0; i < refIds.errors.length; i++){
+      toast(refIds.errors[i]);
     }
-    //if not, terminate execution and throw the appropriate error message
   } else {
-    if (restaurantIds.length <= 0){
-      SpreadsheetApp.getActiveSpreadsheet().toast('EROR: No restaurants matching the specified names were retrieved.');
-    }
-    if (riderIds.length <= 0){
-      SpreadsheetApp.getActiveSpreadsheet().toast('EROR: No riders matching the specified names were retrieved.');
+    var shiftList = getRecordListFromRefIds(shifts, refIds, filters, srcModel);
+    //if there were no errors retrieving a list of records, use them to populate the schedule view
+    if (shiftList.error != undefined){
+      toast(shiftList.error);
+    } else {
+      var weekMap = shiftList[0].start.getWeekMap();
+      if (params.view == 'grid'){
+        setGridView(restaurants, riders, shiftList, weekMap);
+      } else {
+        setScheduleView(restaurants, riders, shiftList, params.view);      
+      }
+      //once view is successfully set, close uiApp instance
+      return app.close();
     }
   }
-  //close uiApp instance
-  return app.close();
 };
-
-
 
 ////// ^^^ UPDATE VIEW MAIN FUNCTION ^^^ //////
 
-////// vvv UPDATE VIEW HELPER FUNCTIONS vvv ///////
 
-//reverse lookup restaurant id's by restaurant name, store both in array
-function getIds(model, names){
-  var ids = [],
-    data = model.data;
-  //if entity params specify 'all', retrive ids for every active entity
-  if (names == 'all'){
-    for (var i = 0; i < data.length; i++){
-      ids.push(data[i].id);
-    }
-  } else {
-    
-    var anyIdFound = false;
-    //reverse lookup each entity id by its name
-    //loop through param names
-    for (var i = 0; i < names.length; i++){
-      //initialize error control flow vars
-      var idFound = false,
-        entityActive = false;
-      //compare param names to entity names in model
-      for (var j = 0; j < data.length; j++){
-        //if match found and entity is active, add the entity's to ids[]
-        if (data[j].name == names[i]) {
-          idFound = true;
-          ids.push(data[j].id);
-          if (data[j].active){
-            entityActive = true;
-          } 
-          break;                          
+
+function getRefIdsFromParams(params, refs){
+  var refIds = {};
+  //loop through params, find keys matching keys in refs
+  for (var key in params){
+    Logger.log('params['+key+']: ' + params[key]);
+    //if match found, add ids for ref types to refids
+    if (key in refs){
+      refIds[key] = [];
+      //if params specify all entities, loop through entity model and add ids of all entities to an array of ref ids for that entity
+      if (params[key] == 'all'){
+        for (var i = 0; i < refs[key].data.length; i++){
+          refIds[key].push(refs[key].data[i].id);
         }
-      }
-      anyIdFound = idFound;
-      //if there is no entity with the name given in params, throw an error message
-      if (!idFound) {
-        SpreadsheetApp.getActiveSpreadsheet().toast('ERROR: There is no entity with the name "' + names[i] + '"');
-        //break;
-      }
-      //if the restaurant given in params is inactive throw an error message
-      if (!entityActive) {
-        SpreadsheetApp.getActiveSpreadsheet().toast('WARNING: The entity "' + names[i] + '" is inactive.');
-        //break;
+      } else { //otherwise, parse entity names from params and retrieve ids for each name
+        var names = params[key].split(', ');
+        for (var k = 0; k < names.length; k++){
+          Logger.log('names['+k+']: ' + names[k]);
+        }
+        for (var i = 0; i < names.length; i++){
+          var name = names[i],
+            id = getIdFromName(refs[key], name);
+          Logger.log('id: ' + id);
+          if (id == undefined){
+            refIds['errors'] = [];
+            refIds.errors.push('ERROR: there are no '+ key + ' in the database with the name ' + name);
+          } else {
+            refIds[key].push(id);
+          }
+        }
       }
     }
   }
-  return ids;
+
+  for (var j in refIds){
+    Logger.log('refIds for key: ' + j + ': ');
+    for (var i = 0; i < refIds[j].length; i++){
+      Logger.log(refIds[j][i]);
+    }
+  }
+  return refIds;
 };
 
-
-function getShiftList(start, end, restaurantIds, riderIds, allRests, allRiders, view){
-  var data = constructSheet('Shifts').shifts.data,
-    shiftList = [];
-  for (var i = 0; i < data.length; i++){
-    //filter out shifts with dates outside the start/end span given in params
-    if (
-        (data[i].start < start && data[i].start.getDate() < start.getDate()) || 
-        (data[i].start > end && data[i].start.getDate() > end.getDate())
-    ) {
-      continue;
-    }
-    //if user is in update view, filter out any confirmed or cancelled shifts      
-    if (view =='update'){
-      if (data[i].status == 'confirmed' || data[i].status == 'cancelled') {
-        continue;
-      }
-    }
-    //if user is in lookup view, use an exclusive search for matching shifts (riders *and* restaurants)
-    if (view == 'lookup'){
-      // if all riders are specified in params, retrieve shifts with restaurants matching those in params
-      if (allRiders){
-        if (restaurantIds.indexOf(data[i].restaurantid) >=0){
-          shiftList.push(data[i]);//add retrieved shifts to shifts[]
-        }
-      //if all restaurants are specified in params, retrieve shifts with riders matching those in params        
-      } else if (allRests){
-        if (riderIds.indexOf(data[i].riderid) >= 0){
-          shiftList.push(data[i]);
-        }
-      //if specific restaurants *and* riders are specified, use an *exclusive* search to retrieve shifts matching restaurants *and* riders
+function getFiltersFromParams(params, refIds, srcModel, view){//only works for shifts model, will need to be adapted for avail (and other) models
+  var date = function(record, params){
+      return (record.start < params.start && record.start.getDate() < params.start.getDate());
+    };
+  if (srcModel == 'shifts'){
+    var view = params.view,
+      start = params.start,
+      end = params.end,
+      filters = {};
+    //filter out all records whose reference ids for a given entity type aren't contained in the array of reference ids for that entity type specified in the params (inclusive search)
+    update = function (record, refIds){
+      return (record.status == 'confirmed' || record.status == 'cancelled')
+    },  
+    getLookupFilters = function (params){
+      var filters = [date],
+        allRiders = params.riders == 'all' ? true : false,
+        allRestaurants = params.restaurants == 'all' ? true : false;
+      if (allRiders && allRestaurants){//use default filter
+        return filters;
+      } else if (allRiders){
+        filters.push(function (record, refIds){//filter out records with restaurants that don't match restaurant refIds from params
+          return (refIds.restaurants.indexOf(record.restaurantid) < 0);
+        }); 
+        return filters;
+      } else if (allRestaurants){
+        filters.push(function (record, refIds){//filter out records with riders that don't match rider refIds from params
+          return (refIds.riders.indexOf(record.riderid) < 0);
+        });
+        return filters;
       } else {
-        if (restaurantIds.indexOf(data[i].restaurantid) >= 0 && riderIds.indexOf(data[i].riderid) >= 0){
-          shiftList.push(data[i]);
-        }
+        filters.push(function(record, refIds){//filter out all records that don't match on both rider id and restaurant id (exclusive search)
+          return (refIds.restaurants.indexOf(record.restaurantid) < 0 || refIds.riders.indexOf(record.riderid) < 0);
+        });
       }
-    //in all views other than lookup, use an *inclusive* search to retrieve shifts matching restaurants *or* riders in params  
-    } else {
-      if (restaurantIds.indexOf(data[i].restaurantid) >= 0 || riderIds.indexOf(data[i].riderid) >= 0){
-        shiftList.push(data[i]);
-      }
-    }
-  }
-  if (view == 'update' && shiftList.length == 0){
-    toast('There are no hanging shifts!');
+    },
+    filters = {
+      grid: [date],
+      weekly: [date],
+      update: [date, update],
+      lookup: getLookupFilters(params)
+    };
+  return filters[view];      
   } else {
-    return shiftList;
+    return date;
   }
 };
+
+function getRecordListFromRefIds(model, refIds, filters){
+  var recordList = [];
+  for (var i = 0; i < model.data.length; i++){
+    var record = model.data[i];    
+    if (applyFilters(record, refIds, filters)){
+      Logger.log('skipping record with id: ' + record.id);
+      continue;
+    } else {
+      Logger.log('adding record with id: ' + record.id);
+      recordList.push(record);
+    }
+  }
+  if (recordList.length > 0){
+    return recordList;
+  } else {
+    return {error: 'ERROR: there were no records retrieved for the specified reference ids'}
+  }
+};
+
+//cycle through all filter functions and return true if any of them return true
+function applyFilters(record, refIds, filters){
+  for (var i = 0; i < filters.length; i ++){
+    Logger.log('Applying the filter to record with id ' + record.id);
+    Logger.log('Filter function: ' + filters[i]);
+    Logger.log('Filter result: ' + filters[i]);
+    if (filters[i](record, refIds)){
+      return true;
+    }
+  }
+};
+
+///////////////////////////
+
 
 function setScheduleView(restaurants, riders, shiftList, view){
   var schedule = constructSheet('Schedule')[view], 
