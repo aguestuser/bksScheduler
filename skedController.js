@@ -10,11 +10,11 @@ function constructSheet(sheetName){
   var spreadsheet = sheetName.slice(0, sheetName.indexOf('.')),
     worksheet = sheetName.slice(sheetName.indexOf('.') + 1, sheetName.length), 
     sheets = {
-      Riders: {
+      riders: {
         key: '0AkfgEUsp5QrAdEt2eU9PcWhKbGVoUzlOS2RkU2RxMEE',
         worksheets: ['info', 'assignments', 'metrics']
       },
-      Restaurants: {
+      restaurants: {
         key: '0AkfgEUsp5QrAdFJyOW9RMjk5M2FNMXI4bmJBMzMwWFE',
         worksheets: ['info', 'needs', 'metrics']
       },
@@ -537,10 +537,7 @@ var app = UiApp.getActiveApplication(),
       self: 'Schedule', 
       model: 'Shifts'
     },
-    refs: {
-      restaurants: {model: 'Restaurants.info', gridCoord: 1, names: p.restaurants},
-      riders: {model: 'Riders.info', gridCoord: 2, names: p.riders}
-    },
+    refs: [{class: 'restaurants', instance: 'info', names: p.restaurants}, {class: 'riders', instance:'info', names: p.riders}],
     dates:{start: p.start, end: p.end},
     filters: {
       update:{matchAttrs: {attr: 'status', values: ['unassigned', 'assigned', 'delegated']}},
@@ -562,7 +559,7 @@ function updateShifts(){
 
   var sp = {
         view: {name: SpreadsheetApp.getActiveSheet().getName(), init: 'fromRange', self: 'Schedule', model: 'Shifts'},
-        refs: {restaurants: {model: 'Restaurants.info', gridCoord: 1},riders: {model: 'Riders.info', gridCoord: 2}},
+        refs: [{class: 'restaurants', instance: 'info'}, {class: 'riders', instance:'info'}],
         volatiles: {grid: ['riderid', 'status'], list: ['riderid', 'status', 'billing', 'urgency']}
       };
 
@@ -572,12 +569,10 @@ function updateShifts(){
 
   /*
   var ap = {
-    view: {name: 'weekly', init: 'fromView', self: 'Availability', model: 'Availabilities'},
-    refs: {
-      riders: {model: 'Riders.info', gridCoord: 1, names: schedule.sheets.refs.riders.names}, 
-      restaurants: {model: 'Restaurants.info', gridCoord: 2, names: schedule.sheets.refs.restaurants.names}
-    },
+    view: {name: 'weekly', init: 'fromRel', self: 'Availability', model: 'Availabilities'},
+    refs: [{class: 'riders', instance: 'info'}, {class: 'restaurants', instance: 'info'}],
     dates:{start: schedule.dates.start, end: schedule.dates.end},
+    rel: schedule,
     filters: {
       update:{matchAttrs: {attr: 'status', values: ['unassigned', 'assigned', 'delegated']}},
       lookup: {matchRefs: {type: 'exclusive'}}
@@ -613,6 +608,7 @@ function View(p){
 
   //*ATTRIBUTES*//
 
+  this.errors = {};
   
   this.view = {
     name: p.view.name,
@@ -631,9 +627,7 @@ function View(p){
   };
 
   initRefs(p.refs);    
-  this.grid = initGrid();
 
-  Logger.log('initialized grid.')
   Logger.log('this.view.init: ' + this.view.init);
 
 
@@ -651,7 +645,7 @@ function View(p){
 
   reconcileRefs(); //make callback from initRecordList
 
-  this.grid.gridMap = initGridMap();//initializing gridMap requires recordList to be already be initialized
+  this..gridMap = initGridMap();//initializing gridMap requires recordList to be already be initialized
 
   this.range = initRange();//blank 2d array mapping values from record list to be displayed as spreadsheet cell values in this view
 
@@ -674,7 +668,7 @@ function View(p){
 
   this.writeToCellMap = function (){
     Logger.log('running this.writeToCellMap()');
-    var gm = this.grid.gridMap,
+    var gm = this..gridMap,
       id = 0,
       range =[];
     Logger.log('gm: ' + gm);
@@ -746,12 +740,10 @@ function View(p){
     Logger.log('Running .refreshViews()!')
     for (var i = 0; i < views.length; i++) {
       var p = this.p,//retrieve core paramaters for view class from this view instance's paramaters 
-        p2 = getParams(this.view.class, views[i]),//retrieve paramaters for view instance to be refreshed
-        ref1 = this.getRef1().modelName,//get model names for ref 1 & ref2
-        ref2 = this.getRef2().modelName;
+        p2 = getParamsFromCache(this.view.class, views[i]);//retrieve paramaters for view instance to be refreshed
 
-      p.refs[ref1].names = p2.ref1Names;//modify core params according to values stored for other instance
-      p.refs[ref2].names = p2.ref2Names;
+      p.refs[0].names = p2.ref0Names;//modify core params according to values stored for foreign instance
+      p.refs[1].names = p2.ref1Names;
       p.dates = {start: p2.start, end: p2.end};
 
       p.view.init = 'fromView';//add params specifying initialization from view (and view instance)
@@ -771,9 +763,9 @@ function View(p){
 
 
   this.getConflictsWith = function(View){
-    var rl1 = this.getRecordsSortedByRef(this.getRef2().modelName),
-      rl2 = View.getRecordsSortedByRef(View.getRef1().modelName);
-    this.conflicts = getConflicts(rl1, rl2);
+    var viewRl = this.getRecordsSortedByRef(this.sheets.refs[0]),
+      relRl = View.getRecordsSortedByRef(View.sheets.refs[1]);
+    this.conflicts = getConflicts(viewRl, relRl);
     setConflictStatuses(this.conflicts);
     return this;
   };
@@ -788,7 +780,7 @@ function View(p){
       if (this.view.type == 'list'){
         range = this.sheets.self.g.getRange(getRowFromRecordId(conflicts[i]), this.sheets.self.col.first, 1, this.sheets.self.col.getLast());
       } else {
-        var gc = getGridCoordFromRecordId(conflicts[i]),
+        var gc = getGridRowColFromRecordId(conflicts[i]),
           row = gc.row,
           col = gc.col,
           range = this.sheets.self.g.getRange(row, col, 1, 1);  
@@ -812,14 +804,14 @@ function View(p){
 //-> each avail record contains a reference to a shift record (if one has been assigned)
 //-> will make this.reconcileWith() much faster, because the method can match direclty instead of looping htrough every shift record, then every vail record
 
-  function getConflicts(rl1, rl2){   
-    for (var ref in rl1) {
-      for (var i = 0; i < rl1[ref].length; i++) {
-        var r1 = rl1[ref][i];
-        for (var j = 0; j < rl2[ref].length; j++){
-          if (rl1[ref][i].start.getDate() == rl2[ref][j].date && (rl1[ref][i].am == rl2[ref][j].am || rl1[ref][i].pm == rl2[ref][j].pm)){//match on day and period
-            if (rl2[ref][j].status == 'not free'){
-              conflicts.push({rel1id: rl1[ref][i].id, rel2id: rel2[ref][id]});//?????
+  function getConflicts(viewRl, relRl){   
+    for (var ref in viewRl) {
+      for (var i = 0; i < viewRl[ref].length; i++) {
+        var r1 = viewRl[ref][i];
+        for (var j = 0; j < relRl[ref].length; j++){
+          if (viewRl[ref][i].start.getDate() == relRl[ref][j].date && (viewRl[ref][i].am == relRl[ref][j].am || viewRl[ref][i].pm == relRl[ref][j].pm)){//match on day and period
+            if (relRl[ref][j].status == 'not free'){
+              conflicts.push({viewId: viewRl[ref][i].id, relId: rel2[ref][id]});//?????
             }
           }
         }
@@ -828,10 +820,8 @@ function View(p){
   };
 
   function setConflictStatuses(conflicts){
-    for (var i = 0; i < self.recordList.length; i++) {
-      if (conflicts.indexOf(self.recordList[i].id) >= 0){
-        self.recordList[i].conflict = true;
-      } 
+    for (var i = 0; i < conflicts.length; i++) {
+        self.recordList[conflicts[i].viewId].conflict = true;
     }
   };
 
@@ -839,16 +829,12 @@ function View(p){
   //**ACCESSOR METHODS **//
 
 
-  this.getRef1 = function(){
-    for (var ref in this.sheets.refs){      
-      if (this.sheets.refs[ref].gridCoord == 1) {return this.sheets.refs[ref];}
-    }
+  this.getref0 = function(){    
+    return this.sheets.refs[0];
   };
 
-  this.getRef2 = function(){
-    for (var ref in this.sheets.refs){      
-      if (this.sheets.refs[ref].gridCoord == 2) {return this.sheets.refs[ref];}
-    }
+  this.getref1 = function(){   
+    return this.sheets.refs[1];
   };
 
   this.getRecordsSortedByRef = function (ref){
@@ -856,7 +842,7 @@ function View(p){
     for (var i = 0; i < ref.ids.length; i++) {
       records[ref.ids[i]]=[];
       for (var j = 0; j < self.recordList.length; j++){
-        if (recordList[j][ref.refIdKey] = ref.ids[i]){
+        if (recordList[j][ref.idKey] = ref.ids[i]){
           records[ref.ids[i]].push(recordList[j]);
         }        
       }
@@ -867,66 +853,59 @@ function View(p){
   function initGreedyRefAccessors(){
     
     self.getNonGreedyRefs = function(){
-      var ngRefs = {};
-      for (var ref in self.sheets.refs){
-        if (!self.sheets.refs[ref].greedy){
-          ngRefs[ref] = self.sheets.refs[ref];
+      var ngRefs = [];
+      for (var i = 0; i < self.sheets.refs.length; i++){
+        if (!self.sheets.refs[i].greedy){
+          ngRefs.push(self.sheets.refs[i]);
         }
       }
       return ngRefs;
     };
     
     self.getGreedyRefs = function(){
-      var gRefs = {};
-      for (var ref in self.sheets.refs){
-        if (self.sheets.refs[ref].greedy){
-          gRefs[ref] = self.sheets.refs[ref];
+      var gRefs = [];
+      for (var i = 0; i < self.sheets.refs.length; i++){
+        if (self.sheets.refs[i].greedy){
+          gRefs.push(self.sheets.refs[i]);
         }
       }
       return gRefs;
-    };  
+    };
  
   };
 
   //*UTILITY FUNCTIONS*//
 
   function cacheParams(p){
-    Logger.log('running storeParams()!')
+    Logger.log('running cacheParams()!')
     self.sheets = {paramCache: constructSheet(p.view.self + 'Params.' + p.view.name)};
-    var ref1 = getRef1Attr(p.refs),
-      ref2 = getRef2Attr(p.refs),
-      range = [];
-    range[0] = [
-      p.refs[ref1].names,
-      p.refs[ref2].names,
-      p.dates.start,
-      p.dates.end
-    ];
+    var range = [[p.refs[0].names, p.refs[1].names, p.dates.start, p.dates.end]];
+
     Logger.log('param range: ' + range);
     self.sheets.paramCache.clearRange();
     self.sheets.paramCache.setRange(range);
-    Logger.log('Finished running storeParams()!');
+    Logger.log('Finished running cacheParams()!');
   };
 
-  function getParams(viewClass, view){
-    Logger.log('running getParams()!');
+  function getParamsFromCache(viewClass, view){
+    Logger.log('running getParamsFromCache()!');
     var params = constructSheet(viewClass + 'Params.' + view);
     return {
+      ref0Names: params.data[0].ref0names,
       ref1Names: params.data[0].ref1names,
-      ref2Names: params.data[0].ref2names,
       start: params.data[0].start,
       end: params.data[0].end
     };
   };
 
   function reconcileRefs (){
-    for (var ref in self.sheets.refs[ref]){
-      reconcileRef(self.sheets.refs[ref]);
+    for (var i = 0; i < self.sheets.refs.length; i++){
+      reconcileRef(self.sheets.refs[i]);
     }
   };
 
   function reconcileRef(ref){
-    var idKey = ref.refIdKey,
+    var idKey = ref.idKey,
       oldNames = ref.names,
       newNames = [],
       ids = [];
@@ -939,12 +918,18 @@ function View(p){
 
   function isRef(attr){
     var isRef = false;
-    for (var ref in self.sheets.refs){
-      if (attr == self.sheets.refs[ref].refNameKey){
+    for (var i = 0; i < self.sheets.refs.length; i++){
+      if (attr == self.sheets.refs[i].nameKey){
         isRef = true;
       }
     }
     return isRef;
+  };
+
+  function getRefIndexFromClass(class){
+    for (var i = 0; i < self.sheets.refs.length; i++) {
+      if (self.sheets.refs[i].class == class){return i;}
+    };
   };
 
   function getRecordsByRefId(ref, id){
@@ -957,17 +942,6 @@ function View(p){
     };
   };
 
-  function getRef1Attr(refs){
-    for (var ref in refs){      
-      if (refs[ref].gridCoord == 1) {return ref;}
-    }
-  };
-
-  function getRef2Attr(refs){
-    for (var ref in refs){      
-      if (refs[ref].gridCoord == 2) {return ref;}
-    }
-  };
 
   function getRowFromRecordId(id){
     for (var i = 0; i < self.range.length; i++) {
@@ -977,7 +951,7 @@ function View(p){
     };
   };
 
-  function getGridCoordFromRecordId(id){
+  function getGridRowColFromRecordId(id){
     for (var i = 0; i < self.cellmap.length; i++) {
       if (cellmap[i].recordid == id)
         return {row: cellmap[i].row, col: cellmap[i].col};
@@ -1037,15 +1011,11 @@ function View(p){
 
 
 
-  function getErrorStr(errorObj){
+  function getErrorStr(errorArr){
     var str = '';
-    if ('errors' in errorObj){//concatenate error messages from error objects with multiple errors
-      for (var error in errorObj.errors){
-        str.concat(error.message + '\n');
-      } 
-    } else {//for single errors, return single error message
-      str.concat(errorObj.message);
-    }
+    for (var i = 0; i < errorArr.length; i++) {
+      str.concat(errorArr[i] + '\n');
+    };
     return str;
   };
 
@@ -1053,65 +1023,52 @@ function View(p){
 
   function initRefs(prefs) {
     Logger.log('Running initRefs()');
-    var refs = {};
+    var refs = [];
     
-    for (var ref in prefs){
+    for (var i = 0; i < prefs.length; i++){
       Logger.log('Initalizing ref for: ' + ref);
-      self.sheets.refs[ref] = {
-        model: constructSheet(prefs[ref].model),
-        gridCoord: prefs[ref].gridCoord,
-        modelName: ref,
-        refNameKey: ref.slice(0, -1),
-        refIdKey: ref.slice(0, -1) + 'id'
+      self.sheets.refs[i] = {
+        model: constructSheet(prefs[i].class + '.' + prefs[i].instance),
+        class: prefs[i].class,
+        nameKey: prefs[i].class.slice(0, -1),
+        idKey: prefs[i].class.slice(0, -1) + 'id'
       };
     Logger.log('self.sheets.refs: ' +self.sheets.refs);
       if (self.view.init == 'fromRel'){
-        initRefIdsFromRel(prefs, ref);
+        initRefIdsFromRel(prefs, i);
       } else if (self.view.init == 'fromUi' || self.view.init == 'fromView'){//only initialize ref.names if initializing from ui (not available yet if initializing from self))
-        var names = getRefNamesFromParams(prefs, ref); 
+        var names = prefs[i].names.split(', '); 
       } else if (self.view.init = 'fromRange'){
-        var names = getRefNamesFromCache(self.sheets.refs[ref].gridCoord);
+        var names = self.sheets.paramCache.data[0]['ref' + i + 'names'];
       } 
       Logger.log('names: ' + names);
-      initRefIdsFromNames(ref, names);
+      initRefIdsFromNames(ref, names, i);
     }
     initGreedyRefAccessors();
     //initRefAccessors();
 
-    if (self.sheets.refs.errors != undefined){
-      toast(getErrorStr(self.sheets.refs.errors));
-      Logger.log(getErrorStr(self.sheets.refs.errors));
+    if (self.errors.refs.length >= 0){
+      toast(getErrorStr(self.errors.refs));
+      Logger.log(getErrorStr(self.errors.refs);
     } 
     Logger.log('Completed initRefs()!');
   };
 
-  function getRefNamesFromParams(prefs, ref){
-    return prefs[ref].names.split(', ');
-  };
-
-  function getRefNamesFromCache(gc){
-    Logger.log('index: ' + 'ref' + gc + 'names');
-    return self.sheets.paramCache.data[0]['ref' + gc + 'names'];
-  };
-
-  function initRefIdsFromNames(ref, names){
+  function initRefIdsFromNames(ref, names, i){
     Logger.log('self.sheets.refs: ' +self.sheets.refs);
-    Logger.log('self.sheets.refs[ref].model: ' + self.sheets.refs[ref].model);
+    Logger.log('self.sheets.refs[i].model: ' + self.sheets.refs[i].model);
     if (names == 'all'){//for param 'all', retrieve all active names and ids of entity type specified by ref
-      self.sheets.refs[ref].greedy = true;
-      self.sheets.refs[ref].ids = getActiveIdsFromModel(self.sheets.refs[ref].model);
-      self.sheets.refs[ref].names = getActiveNamesFromModel(self.sheets.refs[ref].model);//reset names from 'all' to list of all actual names in ref model
+      self.sheets.refs[i].greedy = true;
+      self.sheets.refs[i].ids = getActiveIdsFromModel(self.sheets.refs[i].model);
+      self.sheets.refs[i].names = getActiveNamesFromModel(self.sheets.refs[i].model);//reset names from 'all' to list of all actual names in ref model
     } else {
-      self.sheets.refs[ref].greedy = false;
-      self.sheets.refs[ref].names = names;
-      var result = getIdsFromNames(self.sheets.refs[ref].model, names);//store result and check for errors
-      if (result.error){
-        self.sheets.refs.errors[ref] = {
-          error: true, 
-          message: 'ERROR: a list of ' + ref + ' ids could not be retrieved because the user tried to search for a '+ ref +'name that does not exist.'
-        };       
+      self.sheets.refs[i].greedy = false;
+      self.sheets.refs[i].names = names;
+      var result = getIdsFromNames(self.sheets.refs[i].model, names);//store result and check for errors
+      if (result.error){//log any lookup errors
+        self.errors['refs'][i] = 'ERROR: a list of ' + self.sheets.refs[i].nameKey + ' ids could not be retrieved because the user tried to search for a '+ self.sheets.refs[i].nameKey +'name that does not exist.';
       } else {//if no errors, add retrieved ids to the view object's ref object
-        self.sheets.refs[ref].ids = result;
+        self.sheets.refs[i].ids = result;
       }
     }
   };
@@ -1127,16 +1084,6 @@ function View(p){
     this.sheets.refs[1].ids = this.rel.sheets.refs[0].ids;
     this.sheets.refs[1].names = this.rel.sheets.refs[0].names;
   */
-  };
-
-  function initGrid(){
-    var refs = self.sheets.refs,
-      grid = {};
-    for (var ref in refs){
-      if (refs[ref].gridCoord == 1) {grid['ref1'] = refs[ref];}
-      if (refs[ref].gridCoord == 2) {grid['ref2'] = refs[ref];}
-    }
-    return grid;
   };
 
   //** ^^^ INITIALIZE REFS ^^^ **///
@@ -1164,7 +1111,7 @@ function View(p){
   //** vvv INITIALIZE FILTERS vvv **//
 
   function initFilters(pfilters){
-    if (self.sheets.refs.errors == undefined){//only proceed if no errors initializing refs
+    if (self.errors.refs == undefined){//only proceed if no errors initializing refs
       var view = self.view.name;
       if (view == 'lookup'){//retroactively set params to include non-gredy refs if in lookup view
         pfilters.lookup.matchRefs.ngRefs = self.getNonGreedyRefs();
@@ -1201,16 +1148,16 @@ function View(p){
               Logger.log('args.type: ' + args.type);
               Logger.log('args.ngRefs: ' + args.ngRefs);
 
-              for (var ref in args.ngRefs){
-                var argRef = args.ngRefs[ref];
-                Logger.log('ref model name:' + argRef.modelName);
+              for (var i=0; i<args.ngRefs.length; i++){
+                var argRef = args.ngRefs[i];
+                Logger.log('ref class:' + argRef.class);
                 if (args.type == 'exclusive'){//filter if ids of *any* ref models don't match  
-                  Logger.log('record id:' + record[argRef.refIdKey]);
-                  if (argRef.ids.indexOf(record[argRef.refIdKey]) < 0){
+                  Logger.log('record id:' + record[argRef.idKey]);
+                  if (argRef.ids.indexOf(record[argRef.idKey]) < 0){
                     filter = true;
                   }
                 } else {//filter if ids of *all* ref models don't match
-                  if (argRef.ids.indexOf(record[argRef.refIdKey]) >= 0){
+                  if (argRef.ids.indexOf(record[argRef.idKey]) >= 0){
                     filter = false;
                   }
                 }
@@ -1248,7 +1195,7 @@ function View(p){
   //** vvv INITIALIZE RECORD LIST vvv **//
 
   function initRecordListFromModel(){
-    if (self.sheets.refs.errors == undefined){//only proceed if there were no errors initializing refs
+    if (self.errors.refs == undefined){//only proceed if there were no errors initializing refs
       var recordList = [];
       for (var i = 0; i < self.sheets.model.data.length; i++){  
         var record = self.sheets.model.data[i];
@@ -1268,10 +1215,9 @@ function View(p){
       if (recordList.length > 0){
         return recordList;
       } else {
-        var error = {error: true, message:'ERROR: there were no records retrieved for the specified reference ids'};
-        toast(getErrorStr(error));
-        Logger.log(getErrorStr(error));
-        return error;
+        self.errors['recordList'] = 'ERROR: there were no records retrieved for the specified reference ids.';
+        toast(getErrorStr(self.errors.recordList));
+        Logger.log(getErrorStr(self.errors.recordList));
       }      
     }      
   };
@@ -1335,9 +1281,9 @@ function View(p){
     for (var i = 0; i < self.volatiles.length; i++){
       var vol = self.volatiles[i];
       if (vol.indexOf('id') > 0){//if volatile is a ref id, look up ref id from ref name
-        var refKey = vol.slice(0, -2),
-          ref = refKey+'s';
-        vd[vol] = row[refKey] == undefined ? undefined : getIdFromName(self.sheets.refs[ref].model, row[refKey]); //handle empty cells 
+        var nameKey = vol.slice(0, -2),
+          index = getRefIndexFromClass(vol);
+        vd[vol] = row[refKey] == undefined ? undefined : getIdFromName(self.sheets.refs[index].model, row[nameKey]); //ternary handles empty cells 
       } else {
         vd[vol] = row[vol];
       }
@@ -1354,9 +1300,9 @@ function View(p){
         id: m.id,
         status: getStatusFromCode(code)
       },
-      refId = refName != '' ? getIdFromName(self.grid.ref2.model, refName) : undefined;
-      refIdKey = self.grid.ref2.modelName.slice(0, -1).concat('id');
-      vd[refIdKey] = refId;
+      refId = refName != '' ? getIdFromName(self.sheets.refs[1].model, refName) : undefined;
+      idKey = self.sheets.refs[1].idKey;
+      vd[idKey] = refId;
 
     return vd;
   };
@@ -1395,7 +1341,7 @@ function View(p){
 
   function initGridMap(){
     Logger.log('Running initGridMap()!');
-    var names = self.grid.ref1.names.sort(),
+    var names = self.sheets.refs[0].names.sort(),
       gridMap = [];
     for (var i = 0; i < names.length; i++){
       gridMap.push({
@@ -1454,8 +1400,8 @@ function View(p){
     var am = (period == 'am') ? true : false,
       pm = !am,
       date = self.dates.weekMap[day],
-      idKey = self.grid.ref1.refIdKey,
-      id = getIdFromName(self.grid.ref1.model, gridMap[index].name),
+      idKey = self.sheets.refs[0].idKey,
+      id = getIdFromName(self.sheets.refs[0].model, gridMap[index].name),
       ids= [];
 
     for (var i = 0; i < self.recordList.length; i++){
@@ -1522,7 +1468,7 @@ function View(p){
   function initGridRange(){
     Logger.log('running initGridRange()!');
     var range = [];
-    for (var i = 0; i < self.grid.gridMap.length; i ++){
+    for (var i = 0; i < self..gridMap.length; i ++){
       range.push(initGridRangeRow(i));
     }
     return range;  
@@ -1530,10 +1476,10 @@ function View(p){
 
   function initGridRangeRow(i){
     var row = [];
-    row[0] = self.grid.gridMap[i].name;
-    for (var day in self.grid.gridMap[i].info){
-      for (var period in self.grid.gridMap[i].info[day]){
-        row.push(initGridRangeCellVals(self.grid.gridMap[i].info[day][period].recordIds));
+    row[0] = self..gridMap[i].name;
+    for (var day in self..gridMap[i].info){
+      for (var period in self..gridMap[i].info[day]){
+        row.push(initGridRangeCellVals(self..gridMap[i].info[day][period].recordIds));
       }
     }
     return row;
@@ -1548,15 +1494,15 @@ function View(p){
       for (var j in record){
         Logger.log('record['+j+']: ' + record[i]);
       }
-      Logger.log('record[self.grid.ref2.refIdKey]: ' + record[self.grid.ref2.refIdKey]);
+      Logger.log('record[self.sheets.refs[1].idKey]: ' + record[self.sheets.refs[1].idKey]);
       Logger.log('recordIds['+i+']: ' + recordIds[i]);
       Logger.log('record: ' + record);
-      Logger.log('idKey: ' + self.grid.ref2.refIdKey);
-      //Logger.log('refName: ' + record[self.grid.ref2.refIdKey] == undefined ? '' : getNameFromId(self.grid.ref2.model, record[self.grid.ref2.refIdKey]));
+      Logger.log('idKey: ' + self.sheets.refs[1].idKey);
+      //Logger.log('refName: ' + record[self.sheets.refs[1].idKey] == undefined ? '' : getNameFromId(self.sheets.refs[1].model, record[self.sheets.refs[1].idKey]));
       Logger.log('status: ' + getCodeFromStatus(record.status));
       //var record = getRecordFromId(recordIds[i]),
-      var refIdKey = self.grid.ref2.refIdKey,
-        refName = record[refIdKey] == undefined ? '' : getNameFromId(self.grid.ref2.model, record[refIdKey]),
+      var idKey = self.sheets.refs[1].idKey,
+        refName = record[idKey] == undefined ? '' : getNameFromId(self.sheets.refs[1].model, record[idKey]),
         status = getCodeFromStatus(record.status);
       cell.push(refName + ' ' + status);
     }
