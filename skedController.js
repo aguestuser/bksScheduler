@@ -48,11 +48,11 @@ function constructSheet(sheetName){
 function constructSheets(sheetNames){
   var sheets = {},
     sheetMap = {
-      Riders: {
+      riders: {
         key: '0AkfgEUsp5QrAdEt2eU9PcWhKbGVoUzlOS2RkU2RxMEE',
         sheets: ['info', 'assignments', 'metrics']
       },
-      Restaurants: {
+      restaurants: {
         key: '0AkfgEUsp5QrAdFJyOW9RMjk5M2FNMXI4bmJBMzMwWFE',
         sheets: ['info', 'needs', 'metrics']
       },
@@ -531,12 +531,7 @@ function updateView(e){
 var app = UiApp.getActiveApplication(), 
   p = e.parameter,
   params = {
-    view: {
-      name: p.view, 
-      init: 'fromUi', 
-      self: 'Schedule', 
-      model: 'Shifts'
-    },
+    view: {name: p.view, init: 'fromUi', self: 'Schedule', model: 'Shifts'},
     refs: [{class: 'restaurants', instance: 'info', names: p.restaurants}, {class: 'riders', instance:'info', names: p.riders}],
     dates:{start: p.start, end: p.end},
     filters: {
@@ -780,10 +775,10 @@ function View(p){
       if (this.view.type == 'list'){
         range = this.sheets.self.g.getRange(getRowFromRecordId(conflicts[i]), this.sheets.self.col.first, 1, this.sheets.self.col.getLast());
       } else {
-        var gc = getGridRowColFromRecordId(conflicts[i]),
+        var gc = getGridRowColFromRecordId(conflicts[i].viewid),
           row = gc.row,
           col = gc.col,
-          range = this.sheets.self.g.getRange(row, col, 1, 1);  
+          range = this.sheets.self.g.getRange(row, col, 1, 1)  
       }
         range.setBackground('#FF00FF');
     }
@@ -811,7 +806,7 @@ function View(p){
         for (var j = 0; j < relRl[ref].length; j++){
           if (viewRl[ref][i].start.getDate() == relRl[ref][j].date && (viewRl[ref][i].am == relRl[ref][j].am || viewRl[ref][i].pm == relRl[ref][j].pm)){//match on day and period
             if (relRl[ref][j].status == 'not free'){
-              conflicts.push({viewId: viewRl[ref][i].id, relId: rel2[ref][id]});//?????
+              conflicts.push({viewid: viewRl[ref][i].id, relid: rel2[ref][id]});//?????
             }
           }
         }
@@ -821,21 +816,12 @@ function View(p){
 
   function setConflictStatuses(conflicts){
     for (var i = 0; i < conflicts.length; i++) {
-        self.recordList[conflicts[i].viewId].conflict = true;
+        self.recordList[conflicts[i].viewid].conflict = true;
     }
   };
 
 
   //**ACCESSOR METHODS **//
-
-
-  this.getref0 = function(){    
-    return this.sheets.refs[0];
-  };
-
-  this.getref1 = function(){   
-    return this.sheets.refs[1];
-  };
 
   this.getRecordsSortedByRef = function (ref){
     var records = {};
@@ -1010,12 +996,11 @@ function View(p){
   };
 
 
-
   function getErrorStr(errorArr){
     var str = '';
     for (var i = 0; i < errorArr.length; i++) {
       str.concat(errorArr[i] + '\n');
-    };
+    }
     return str;
   };
 
@@ -1047,9 +1032,9 @@ function View(p){
     initGreedyRefAccessors();
     //initRefAccessors();
 
-    if (self.errors.refs.length >= 0){
+    if (self.errors.refs.length > 0){
       toast(getErrorStr(self.errors.refs));
-      Logger.log(getErrorStr(self.errors.refs);
+      Logger.log(getErrorStr(self.errors.refs));
     } 
     Logger.log('Completed initRefs()!');
   };
@@ -1300,9 +1285,9 @@ function View(p){
         id: m.id,
         status: getStatusFromCode(code)
       },
-      refId = refName != '' ? getIdFromName(self.sheets.refs[1].model, refName) : undefined;
+      refId = refName != '' ? getIdFromName(self.sheets.refs[1].model, refName) : undefined,
       idKey = self.sheets.refs[1].idKey;
-      vd[idKey] = refId;
+    vd[idKey] = refId;
 
     return vd;
   };
