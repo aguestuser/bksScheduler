@@ -7,6 +7,8 @@ COPYRIGHT 2014 AUSTIN GUEST -- ALL RIGHTS RESERVED
 //*CONSTRUCT SHEET OBJECTS
 
 function constructSheet(ss, ws){
+  // Logger.log('ss: ' + ss);
+  // Logger.log('ws: ' + ws);
   var sheets = {
         riders: {
           key: '0AkfgEUsp5QrAdEt2eU9PcWhKbGVoUzlOS2RkU2RxMEE',
@@ -16,23 +18,23 @@ function constructSheet(ss, ws){
           key: '0AkfgEUsp5QrAdFJyOW9RMjk5M2FNMXI4bmJBMzMwWFE',
           worksheets: ['info', 'needs', 'metrics']
         },
-        Shifts: {
+        shifts: {
           key: '0AkfgEUsp5QrAdEdJc3BmMEt0TXFTdmVHY1cyWHdMTFE',
           worksheets: ['index']
         },
-        Availabilities: {
+        availabilities: {
           key: '0AkfgEUsp5QrAdEdvSWQ0eVRMZmR1RXZRRW13LWY0ZEE',
           worksheets: ['index']
         },
-        Schedule: {
+        schedule: {
           key: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
           worksheets: ['grid', 'weekly', 'update', 'lookup']
         },
-        ScheduleParams: {
+        scheduleParams: {
           key: '0AkfgEUsp5QrAdHp6Q2dES0Z5Tm9YOGZsSWRnUEFuX0E',
           worksheets: ['grid', 'weekly', 'update', 'lookup']
         },
-        ScheduleCellMaps: {
+        scheduleCellMaps: {
           key: '0AkfgEUsp5QrAdEE4eUhDT2RnNmlwRnQ0dkRsSHZlS3c',
           worksheets: ['grid', 'weekly', 'update', 'lookup']
         }
@@ -41,37 +43,6 @@ function constructSheet(ss, ws){
     sheet.class = ss;
     sheet.instance = ws;
   return sheet;
-};
-
-function constructSheets(sheetNames){
-  var sheets = {},
-    sheetMap = {
-      riders: {
-        key: '0AkfgEUsp5QrAdEt2eU9PcWhKbGVoUzlOS2RkU2RxMEE',
-        sheets: ['info', 'assignments', 'metrics']
-      },
-      restaurants: {
-        key: '0AkfgEUsp5QrAdFJyOW9RMjk5M2FNMXI4bmJBMzMwWFE',
-        sheets: ['info', 'needs', 'metrics']
-      },
-      Shifts: {
-        key: '0AkfgEUsp5QrAdEdJc3BmMEt0TXFTdmVHY1cyWHdMTFE',
-        sheets: ['shifts']
-      },
-      Schedule: {
-        key: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
-        sheets: ['grid', 'weekly', 'update', 'lookup', 'cellmap', 'rowmap']
-      }
-    }; 
-  for (var i = 0; i < sheetNames.length; i++){
-    var sheetName = sheetNames[i];
-    sheets[sheetName] = {};
-    for (var j = 0; j < sheetMap[sheetName].sheets.length; j++){
-        sheets[sheetName][sheetMap[sheetName].sheets[j]] = new Sheet(sheetMap[sheetName].key, j);
-    }
-  }
-  return sheets;
-
 };
 
 //construct sheet objects
@@ -140,10 +111,10 @@ function Sheet(key, index) {
   };
 
   this.setRange = function (range){
-    Logger.log('.setRange range: ' + range);
-    Logger.log('range.length: ' + range.length);
-    Logger.log('typeof(this): ' + typeof(this));
-    Logger.log('typeof(range): ' + typeof(this));
+    // Logger.log('.setRange range: ' + range);
+    // Logger.log('range.length: ' + range.length);
+    // Logger.log('typeof(this): ' + typeof(this));
+    // Logger.log('typeof(range): ' + typeof(this));
     this.g
       .getRange(this.row.first, this.col.first, range.length, range[0].length)
       .setValues(range);
@@ -264,6 +235,14 @@ function objectTranspose(obj){
 
 //*UTILITY FUNCTIONS*
 
+function getSsName(){
+  return SpreadsheetApp.getActiveSpreadsheet().getName();
+};
+
+function getWsName(){
+  return SpreadsheetApp.getActiveSheet().getName();
+};
+
 //add dedupe method to Array prototype
 Array.prototype.dedupe = function() {
     var i, 
@@ -379,10 +358,9 @@ function getIdFromName(model, name){
       return model.data[i].id;
     }
   }
-  var error = {error: true, message: 'ERROR: there was no entity found with name: ' + name};
-  toast(error.message);
-  Logger.log(error.message);
-  return error;
+  var error = 'ERROR: there was no entity found with name: ' + name;
+  toast(error);
+  Logger.log(error);
 };
 
 function getRecordsByIds(model, ids){
@@ -422,8 +400,7 @@ function getNamesFromIds(model, ids){
 };
 
 function getNameFromId(model, id){
-  Logger.log('running getNamesFromId('+model+', '+id+')');
-  Logger.log('model.data.length: ' + model.data.length);
+  // Logger.log('running getNamesFromId('+model.class +'.'+ model.instance +', '+id+')');
   return model.data[id].name;
 };
 
@@ -460,7 +437,7 @@ function createMenus() {
 function initUpdateViewUi(){
 
   //get sheet and sheet index to determine view to pass to click handler
-  var ss = SpreadsheetApp.getActiveSpreadsheet().getName()
+  var ss = SpreadsheetApp.getActiveSpreadsheet().getName(),
     ws = SpreadsheetApp.getActiveSheet().getName(),
     sheet = constructSheet(ss, ws),
   //retrieve view's current start and end dates from sheet data
@@ -472,7 +449,8 @@ function initUpdateViewUi(){
     //construct panel to hold user input elements
     panel = app.createVerticalPanel(),
     //construct ui elements to retrive and store paramaters to pass to updateShiftsView()
-    view = app.createHidden('view', sheetName).setName('view').setId('view'),//store sheet name as 'view'
+    class = app.createHidden('class', ss).setName('class').setId('class'),
+    instance = app.createHidden('instance', ws).setName('instance').setId('instance'),//store sheet name as 'view'
     startLabel = app.createLabel('Start Date').setId('startLabel'),
     start = app.createDateBox().setName('start').setId('start').setValue(curStart),
     endLabel = app.createLabel('End Date').setId('endLabel'),
@@ -480,11 +458,13 @@ function initUpdateViewUi(){
     //define callback
     submitHandler = app.createServerHandler('updateView')
       .setId('submitHandler')
-      .addCallbackElement(view)
+      .addCallbackElement(class)
+      .addCallbackElement(instance)
       .addCallbackElement(start)
       .addCallbackElement(end);
+  Logger.log('instance: ' + instance);
   //for lookup view, retrieve restaurants and riders from user input 
-  if (sheetName == 'lookup'){
+  if (ws == 'lookup'){
     var restaurantsLabel = app.createLabel('Restaurants').setId('restaurantsLabel'),    
       restaurants = app.createTextBox().setName('restaurants').setId('restaurants').setValue('all'),
       ridersLabel = app.createLabel('Riders').setId('ridersLabel'), 
@@ -507,7 +487,7 @@ function initUpdateViewUi(){
     .add(start)
     .add(endLabel)
     .add(end);
-  if (sheetName == 'lookup'){
+  if (ws == 'lookup'){
     panel
       .add(restaurantsLabel)  
       .add(restaurants)  
@@ -532,16 +512,11 @@ function updateView(e){
 var app = UiApp.getActiveApplication(), 
   p = e.parameter,
   params = {
-    view: {name: p.view, init: 'fromUi', self: 'Schedule', model: 'Shifts'},
+    view: {class: p.class, instance: p.instance, init: 'fromUi'},
+    model: {class: 'shifts', instance: 'index'},
     refs: [{class: 'restaurants', instance: 'info', names: p.restaurants}, {class: 'riders', instance:'info', names: p.riders}],
-    dates:{start: p.start, end: p.end},
-    filters: {
-      update:{matchAttrs: {attr: 'status', values: ['unassigned', 'assigned', 'delegated']}},
-      lookup: {matchRefs: {type: 'exclusive'}}
-    }
+    dates:{start: p.start, end: p.end}
   };
-
- 
 
   //initialize schedule view
   schedule = new View(params);
@@ -554,42 +529,38 @@ var app = UiApp.getActiveApplication(),
 function updateShifts(){
 
   var sp = {
-        view: {name: SpreadsheetApp.getActiveSheet().getName(), init: 'fromRange', self: 'Schedule', model: 'Shifts'},
+        view: {class: 'schedule', instance: getWsName(), init: 'fromRange'},
+        model: {class: 'shifts', instance: 'index'},
         refs: [{class: 'restaurants', instance: 'info'}, {class: 'riders', instance:'info'}],
-        volatiles: {grid: ['riderid', 'status'], list: ['riderid', 'status', 'billing', 'urgency']}
+        vols: {grid: ['riderid', 'status'], list: ['riderid', 'status', 'billing', 'urgency']}
       };
 
 
   schedule = new View(sp);
   schedule.writeToModel().refreshViews(['grid', 'weekly', 'update', 'lookup']);
 
-  /*
-  var ap = {
-    view: {name: 'weekly', init: 'fromRel', self: 'Availability', model: 'Availabilities'},
-    refs: [{class: 'riders', instance: 'info'}, {class: 'restaurants', instance: 'info'}],
-    dates:{start: schedule.dates.start, end: schedule.dates.end},
-    rel: schedule,
-    filters: {
-      update:{matchAttrs: {attr: 'status', values: ['unassigned', 'assigned', 'delegated']}},
-      lookup: {matchRefs: {type: 'exclusive'}}
-    }
-  };
+  // var ap = {
+  //   view: {class: 'availability', instance: 'weekly', init: 'fromRel'},
+  //   model: {class: 'availabilities', instance: 'index'},
+  //   refs: [{class: 'riders', instance: 'info'}, {class: 'restaurants', instance: 'info'}],//maybe not necess?
+  //   dates: {start: schedule.dates.start, end: schedule.dates.end},
+  //   rel: {view: schedule, join: 'shiftid', vols: ['status', 'restaurantid', 'start', 'end'])
+  // };
 
-  avail = new View (ap);
+  // avail = new View (ap);
 
-  if (schedule.getConflictsWith(avail).hasConflicts){
-    schedule.highlightConflicts();
-  } else {
-    avail
-      .reconcileWith(schedule, 'shiftid', ['status', 'restaurantid', 'start', 'end'])
-      .refreshViews();
-    schedule
-      .refreshViews(['grid', 'weekly', 'update', 'lookup'])
-      .sendEmails()
-      .writeToCalendar();
-  }
+  // if (schedule.getConflictsWith(avail).hasConflicts){
+  //   schedule.highlightConflicts();
+  // } else {
+  //   avail
+  //     .reconcileWith(schedule)
+  //     .refreshViews(['grid', 'weekly', 'lookup']);
+  //   schedule
+  //     .refreshViews(['grid', 'weekly', 'update', 'lookup'])
+  //     .sendEmails()
+  //     .writeToCalendar();
+  // }
 
-  */
 
 
 };
@@ -598,50 +569,44 @@ function updateShifts(){
 
 function View(p){
   
-  var self = this;
+  var self = this;//store reference to view's context
+  if (p.view.init == 'fromUi'){cacheParams(p);}//cache params, store them as attribute
   this.p = p;
-  if (p.view.init == 'fromUi'){cacheParams(p);}
+  this.errors = {};
 
   //*ATTRIBUTES*//
 
-  this.errors = {};
-  
-  this.view = {
-    name: p.view.name,
-    type: p.view.name == 'grid' ? 'grid' : 'list',
-    init: p.view.init,
-    class: p.view.self,
+  this.view = p.view;
+  this.view.type = this.view.instance == 'grid' ? 'grid' : 'list';
+  this.view.sheet = constructSheet(this.view.class,  this.view.instance);
+  //LOG VIEW PARAMS (for testing) 
+  for (var j in this.view){
+    Logger.log('this.view['+j+']: ' + this.view[j]);
+  }
+
+  this.model = p.model;
+  this.model.sheet = constructSheet(this.model.class,  this.model.instance);
+
+  this.cache = {
+    params: {class: this.view.class+'Params', instance: this.view.instance, sheet: constructSheet(this.view.class+'Params', this.view.instance)},
+    cellmap: {class: this.view.class+'CellMaps', instance: this.view.name, sheet: constructSheet(this.view.class+'CellMaps', this.view.instance)}
   };
 
-  this.sheets = {
-    self: constructSheet(p.view.self,  p.view.name),
-    model: constructSheet(p.view.model,  'index'),
-    cellmap: constructSheet(this.view.class+'CellMaps', this.view.name),
-    paramCache: constructSheet(this.view.class+'Params', p.view.name), 
-    refs: {}
-  };
+  initDates();
+  initRefs();    
 
-  initRefs(p.refs);    
-
-  Logger.log('this.view.init: ' + this.view.init);
-
-
-  if (this.view.init == 'fromUi' || this.view.init == 'fromView'){
-    this.dates = initDatesFromParams();
-    this.filters = initFilters(p.filters);
-    this.recordList = initRecordListFromModel();//virtual map of all records referenced in this view
-
+  if (this.view.init == 'fromUi' || this.view.init == 'fromAltInstance'){
+    Logger.log('initializing filters!');
+    this.filters = initFilters();
   } else if (this.view.init == 'fromRange'){
-    this.dates = initDatesFromCache();
-    this.volatiles = p.volatiles[this.view.type];
-    this.recordList = initRecordListFromSelf();//virtual map of all records referenced in this view
-  } 
+    this.vols = p.vols[this.view.type];
+  } else if (this.view.init =='fromRel'){
+    this.rel = p.rel;
+  }
   
-  reconcileRefs(); //make callback from initRecordList
-
-  this.gridMap = initGridMap();//initializing gridMap requires recordList to be already be initialized
-
-  this.range = initRange();//blank 2d array mapping values from record list to be displayed as spreadsheet cell values in this view
+  initRecordList();//array of objects: each object is a record to be displayed in the view
+  initGridMap();//map of which record attributes correspond to which cell of a grid view
+  initRange();//2d array mapping record list values to spreadsheet range in view instance
 
   //**METHODS*//
 
@@ -654,8 +619,8 @@ function View(p){
     } else {
       range = this.range;
     }
-    this.sheets.self.clearRange();
-    this.sheets.self.setRange(range);
+    this.view.sheet.clearRange();
+    this.view.sheet.setRange(range);
     if (this.view.type == 'grid') {this.writeToCellMap();}
     return this;
   };
@@ -665,16 +630,15 @@ function View(p){
     var gm = this.gridMap,
       id = 0,
       range =[];
-    Logger.log('gm: ' + gm);
-    Logger.log('gm.length: ' + gm.length);
+    // Logger.log('gm: ' + gm);
+    // Logger.log('gm.length: ' + gm.length);
   
     //build cellmap range from grid row data
     for (var i = 0; i < gm.length; i++){
       for (var day in gm[i].info){
         for (var period in gm[i].info[day]){
-          Logger.log('gm['+i+'].info['+day+']['+period+'].recordIds: ' + gm[i].info[day][period].recordIds)
+          // Logger.log('gm['+i+'].info['+day+']['+period+'].recordIds: ' + gm[i].info[day][period].recordIds)
           for (var j = 0; j < gm[i].info[day][period].recordIds.length; j++){
-            Logger.log('id: ' + id)
             range.push([
               id,//id
               i + 2,//row
@@ -687,20 +651,21 @@ function View(p){
         }
       }
     } 
-    this.sheets.cellmap.clearRange();
-    this.sheets.cellmap.setRange(range);
+    this.cache.cellmap.sheet.clearRange();
+    this.cache.cellmap.sheet.setRange(range);
     return this;
   };
 
   this.writeToModel = function(){
-    var model = this.sheets.model;
+    Logger.log('Running '+ this.view.class +'.writeToModel()!')
+    var model = this.model.sheet;
     for (var i = 0; i < this.recordList.length; i++){//match record list rows to model rows by id
       var id = this.recordList[i].id;
       if (id == undefined || id == 'new'){//if the view's id attr indicates a new record, create one 
         this.writeNewRecordToModel(this.recordList[i], i);
       } else {//otherwise, overwrite all cells in model whose values don't match those in the record list
-        for (var j = 0; j< this.volatiles.length; j++){
-          var vol = this.volatiles[j];
+        for (var j = 0; j< this.vols.length; j++){
+          var vol = this.vols[j];
           if (this.recordList[i][vol] != model.data[id][vol]){
             model.updateCell(model.getRowNum(id), model.getColNum(vol), this.recordList[i][vol]);
           }
@@ -708,57 +673,62 @@ function View(p){
       }
     }
     toast('Updated '+ model.g.getParent().getName() +' model!');
-    this.sheets.model = constructSheet(this.sheets.self.spreadsheet, this.sheets.self.worksheet);//refresh view object's virtual copy of model
-    
+    this.model.sheet = constructSheet(this.view.sheet.class, this.view.sheet.instance);//refresh view object's virtual copy of model
+    Logger.log('Finished running '+ this.view.class +'.writeToModel()!')
     return this;
   };
 
   this.writeNewRecordToModel = function(record, i){
+    // Logger.log('running .writeNewRecordToModel()');
+    // for (var j in record){
+    //   Logger.log ('record['+j+']: ' + record[j]);
+    // }
     var range = [];
-    record.id = this.sheets.model.g.getLastRow() -2 + 1;//set the new record's id to one greater than the last id in the model
+    record.id = this.model.sheet.g.getLastRow() -2 + 1;//set the new record's id to one greater than the last id in the model
     this.recordList[i].id = record.id;//append new id to record list
     this.range[i][0] = record.id;//append new id to range
-    for (var i = 0; i < this.sheets.model.headers.length; i++){
-      var val = getListCellVal(record, this.sheets.model.headers[i]);
+    for (var j = 0; j < this.model.sheet.headers.length; j++){
+      var val = record[this.model.sheet.headers[j]];
       if (val == undefined){//substitute empty string for undefined values
         range.push('');
       } else {
         range.push(val);        
       }
     }
-    this.sheets.model.g.appendRow(range);
+    Logger.log('range: ' + range);
+    this.model.sheet.g.appendRow(range);
     return this;
   };
 
-  this.refreshViews = function(views){
-    Logger.log('Running .refreshViews()!')
-    for (var i = 0; i < views.length; i++) {
+  this.refreshViews = function(instances){
+    Logger.log('Running .refreshViews()!');
+    Logger.log('this.p: ' + this.p);
+    for (var j in this.p){
+      Logger.log('this.p['+j+']: ' + this.p[j]);
+    }
+    for (var i = 0; i < instances.length; i++) {
       var p = this.p,//retrieve core paramaters for view class from this view instance's paramaters 
-        p2 = getParamsFromCache(this.view.class, views[i]);//retrieve paramaters for view instance to be refreshed
+        p2 = getParamsFromAltInstance(this.view.class, instances[i]);//retrieve paramaters for view instance to be refreshed
 
-      p.refs[0].names = p2.ref0Names;//modify core params according to values stored for foreign instance
+      p.refs[0].names = p2.ref0Names;//modify core params according to values stored for alt instance
       p.refs[1].names = p2.ref1Names;
       p.dates = {start: p2.start, end: p2.end};
 
-      p.view.init = 'fromView';//add params specifying initialization from view (and view instance)
-      p.view.name = views[i];
-
-      p.filters = {//add filter params (not specified when initializing from range)
-        update:{matchAttrs: {attr: 'status', values: ['unassigned', 'assigned', 'delegated']}},
-        lookup: {matchRefs: {type: 'exclusive'}}
-      };
+      p.view.init = 'fromAltInstance';//add params specifying initialization from view (and view instance)
+      p.view.instance = instances[i];
      
       var altView = new View(p);//construct view object for other view instance
       altView.writeToSelf();//call .writeToSelf() to refresh the view instance
-      toast('Updated ' + views[i] + ' view!');
+      toast('Updated ' + instances[i] + ' view!');
     }
+    Logger.log('Finished running .refreshViews()!');
     return this;
   };
 
 
   this.getConflictsWith = function(View){
-    var viewRl = this.getRecordsSortedByRef(this.sheets.refs[0]),
-      relRl = View.getRecordsSortedByRef(View.sheets.refs[1]);
+    var viewRl = this.getRecordsSortedByRef(this.refs[0]),
+      relRl = View.getRecordsSortedByRef(View.refs[1]);
     this.conflicts = getConflicts(viewRl, relRl);
     setConflictStatuses(this.conflicts);
     return this;
@@ -772,19 +742,19 @@ function View(p){
     var range = [];
     for (var i = 0; i < this.conflicts.length; i++) {
       if (this.view.type == 'list'){
-        range = this.sheets.self.g.getRange(getRowFromRecordId(conflicts[i]), this.sheets.self.col.first, 1, this.sheets.self.col.getLast());
+        range = this.view.sheet.g.getRange(getRowFromRecordId(conflicts[i]), this.view.sheet.col.first, 1, this.view.sheet.col.getLast());
       } else {
         var gc = getGridRowColFromRecordId(conflicts[i].viewid),
           row = gc.row,
           col = gc.col,
-          range = this.sheets.self.g.getRange(row, col, 1, 1)  
+          range = this.view.sheet.g.getRange(row, col, 1, 1)  
       }
         range.setBackground('#FF00FF');
     }
   };
 
   /*
-  this.reconcileWith = function (View, matchId, volatiles){
+  this.reconcileWith = function (View, matchId, vols){
     for (var i = 0; i < View.recordList.length; i++) {
       for (var j = 0; j < recordList.length; j++){
         if(this.recordList[i][matchId] == View.recordList)        
@@ -792,11 +762,6 @@ function View(p){
     }
   };
   */
-
-//store references between availabilities and shifts (call them relatives?)
-//-> each shift record contains a reference to an avail record
-//-> each avail record contains a reference to a shift record (if one has been assigned)
-//-> will make this.reconcileWith() much faster, because the method can match direclty instead of looping htrough every shift record, then every vail record
 
   function getConflicts(viewRl, relRl){   
     for (var ref in viewRl) {
@@ -839,9 +804,9 @@ function View(p){
     
     self.getNonGreedyRefs = function(){
       var ngRefs = [];
-      for (var i = 0; i < self.sheets.refs.length; i++){
-        if (!self.sheets.refs[i].greedy){
-          ngRefs.push(self.sheets.refs[i]);
+      for (var i = 0; i < self.refs.length; i++){
+        if (!self.refs[i].greedy){
+          ngRefs.push(self.refs[i]);
         }
       }
       return ngRefs;
@@ -849,9 +814,9 @@ function View(p){
     
     self.getGreedyRefs = function(){
       var gRefs = [];
-      for (var i = 0; i < self.sheets.refs.length; i++){
-        if (self.sheets.refs[i].greedy){
-          gRefs.push(self.sheets.refs[i]);
+      for (var i = 0; i < self.refs.length; i++){
+        if (self.refs[i].greedy){
+          gRefs.push(self.refs[i]);
         }
       }
       return gRefs;
@@ -863,53 +828,65 @@ function View(p){
 
   function cacheParams(p){
     Logger.log('running cacheParams()!')
-    self.sheets = {paramCache: constructSheet(p.view.self+'Params', p.view.name)};
+    // Logger.log('p.view.class: ' + p.view.class);
+    // Logger.log('p.view.instance: ' + p.view.instance);
+    self.cache = {params:{class: p.view.class, instance: p.view.instance, sheet: constructSheet(p.view.class+'Params', p.view.instance)}};
     var range = [[p.refs[0].names, p.refs[1].names, p.dates.start.setToMidnight(), p.dates.end.setToMidnight()]];
 
-    Logger.log('param range: ' + range);
-    self.sheets.paramCache.clearRange();
-    self.sheets.paramCache.setRange(range);
+    self.cache.params.sheet.clearRange();
+    self.cache.params.sheet.setRange(range);
     Logger.log('Finished running cacheParams()!');
   };
 
-  function getParamsFromCache(class, instance){
-    Logger.log('running getParamsFromCache()!');
-    var params = constructSheet(class+'Params', instance);
+  function getParamsFromAltInstance(class, instance){
+    Logger.log('running getParamsFromAltInstance()!');
+    var params = constructSheet(class+'Params', instance).data[0];
+    for (var j in params){
+      Logger.log('params['+j+']: ' + params[j])
+    }
     return {
-      ref0Names: params.data[0].ref0names,
-      ref1Names: params.data[0].ref1names,
-      start: params.data[0].start,
-      end: params.data[0].end
+      ref0Names: params.ref0names,
+      ref1Names: params.ref1names,
+      start: params.start,
+      end: params.end
     };
   };
 
   function reconcileRefs (){
     Logger.log('running reconcileRefs()');
-    for (var i = 0; i < self.sheets.refs.length; i++){
-      reconcileRef(self.sheets.refs[i]);
+    for (var i = 0; i < self.refs.length; i++){
+      reconcileRef(self.refs[i]);
     }
     Logger.log('finished running reconcileRefs()');
   };
 
   function reconcileRef(ref){
-    var idKey = ref.idKey,
-      oldNames = ref.names,
-      newNames = [],
-      ids = [];
-    for (var i = 0; i < self.recordList.length; i++){
-      if(self.recordList[i][idKey] != undefined && self.recordList[i][idKey] != ''){ids.push(self.recordList[i][idKey]);}
+    if (self.recordList != undefined){
+      var idKey = ref.idKey,
+        oldNames = ref.names,
+        newNames = [],
+        ids = [];
+      for (var i = 0; i < self.recordList.length; i++){
+        if(
+          self.recordList[i][idKey] != undefined && 
+          self.recordList[i][idKey] != '' //&& 
+          // typeof(self.recordList[i][idKey])=='number'
+        ){
+          ids.push(self.recordList[i][idKey]);
+        }
+      }
+      ref.ids = ids.dedupe();
+      Logger.log('ref.ids: ' + ref.ids);
+      ref.names = getNamesFromIds(ref.sheet, ref.ids);  
     }
-    ref.ids = ids.dedupe();
-    ref.names = getNamesFromIds(ref.model, ids);  
   };
 
   function isRef(attr){
     var isRef = false;
-    Logger.log('self.sheets.refs.length: ' + self.sheets.refs.length);
-    for (var i = 0; i < self.sheets.refs.length; i++){
-      if (attr.indexOf(self.sheets.refs[i].nameKey) >= 0){
-        Logger.log('attr: ' + attr);
-        Logger.log('nameKey: ' + self.sheets.refs[i].nameKey);
+    for (var i = 0; i < self.refs.length; i++){
+      if (attr.indexOf(self.refs[i].nameKey) >= 0){
+        // Logger.log('attr: ' + attr);
+        // Logger.log('nameKey: ' + self.refs[i].nameKey);
         isRef = true;
       }
     }
@@ -917,8 +894,8 @@ function View(p){
   };
 
   function getRefIndexFromClass(class){
-    for (var i = 0; i < self.sheets.refs.length; i++) {
-      if (self.sheets.refs[i].class == class){return i;}
+    for (var i = 0; i < self.refs.length; i++) {
+      if (self.refs[i].class == class){return i;}
     };
   };
 
@@ -935,7 +912,7 @@ function View(p){
 
   function getRowFromRecordId(id){
     for (var i = 0; i < self.range.length; i++) {
-      if (self.range[i][self.sheets.self.headers.indexOf('id')]){
+      if (self.range[i][self.view.sheet.headers.indexOf('id')]){
         return i + 2;
       }
     };
@@ -1008,29 +985,70 @@ function View(p){
     return str;
   };
 
+  //** ^^^ UTILITY FUNCTIONS ^^^ **//
+
+  //** vvv INITIALIZE DATES vvv **//
+
+  function initDates(){
+    switch (self.view.init){
+      case 'fromUi':
+        initDatesFromParams();
+        break;
+      case 'fromAltInstance':
+        initDatesFromParams();
+        break;
+      case 'fromRange':
+        initDatesFromCache();
+        break;
+      // case 'fromRel'
+      //   initDatesFromRel();
+    }
+  }
+
+  function initDatesFromParams(){
+    self.dates = {
+      start: self.p.dates.start.setToMidnight(),
+      end: self.p.dates.end.setToMidnight(),
+      weekMap: self.p.dates.start.getWeekMap()
+    }
+  };
+
+  function initDatesFromCache(){
+    Logger.log('')
+    self.dates = {
+      start: self.cache.params.sheet.data[0].start,
+      end: self.cache.params.sheet.data[0].end,
+      weekMap: self.cache.params.sheet.data[0].start.getWeekMap()
+    }
+  };
+
+  //** ^^^ INITIALIZE DATES ^^^ **//
+
   //** vvv INITIALIZE REFS vvv **///
 
-  function initRefs(prefs) {
+  function initRefs() {
     Logger.log('Running initRefs()');
-    self.sheets.refs = [];
+    self.refs = [];
     
-    for (var i = 0; i < prefs.length; i++){
-      Logger.log('Initalizing ref for: ' + prefs[i].class);
-      self.sheets.refs[i] = {
-        model: constructSheet(prefs[i].class, prefs[i].instance),
-        class: prefs[i].class,
-        nameKey: prefs[i].class.slice(0, -1),
-        idKey: prefs[i].class.slice(0, -1) + 'id'
+    for (var i = 0; i < p.refs.length; i++){
+      Logger.log('Initalizing ref for ref with class: ' + p.refs[i].class + ' and instance: ' + p.refs[i].instance);
+      self.refs[i] = {
+        class: p.refs[i].class,
+        instance: p.refs[i].instance,
+        sheet: constructSheet(p.refs[i].class, p.refs[i].instance),
+        nameKey: p.refs[i].class.slice(0, -1),
+        idKey: p.refs[i].class.slice(0, -1) + 'id'
       };
-
       if (self.view.init == 'fromRel'){
-        initRefIdsFromRel(prefs, i);
-      } else if (self.view.init == 'fromUi' || self.view.init == 'fromView'){//only initialize ref.names if initializing from ui (not available yet if initializing from self))
-        var names = prefs[i].names.split(', '); 
-      } else if (self.view.init = 'fromRange'){        
-        var names = self.sheets.paramCache.data[0]['ref' + i + 'names'];
+        initRefNamesAndIdsFromRel(p.refs, i);
+      } else {
+        if (self.view.init == 'fromUi' || self.view.init == 'fromAltInstance'){
+          var names = p.refs[i].names.split(', '); 
+        } else if (self.view.init = 'fromRange'){        
+          var names = self.cache.params.sheet.data[0]['ref' + i + 'names'];
+        } 
+        initRefIdsFromNames(names, i);        
       } 
-      initRefIdsFromNames(names, i);
     }
     initGreedyRefAccessors();
     //initRefAccessors();
@@ -1040,81 +1058,60 @@ function View(p){
       Logger.log(getErrorStr(self.errors.refs));
     } 
     Logger.log('Completed initRefs()!');
-    for (var i = 0; i < self.sheets.refs.length; i++) {
-      Logger.log('self.sheets.refs['+i+']: ' + self.sheets.refs[i]);
-    };
+    // LOG REFS (for testing only)
+    // for (var i = 0; i < self.refs.length; i++) {
+    //   Logger.log('self.refs['+i+']: ' + self.refs[i]);
+    // };
 
   };
 
   function initRefIdsFromNames(names, i){
     if (names == 'all'){//for param 'all', retrieve all active names and ids of entity type specified by ref
-      self.sheets.refs[i].greedy = true;
-      self.sheets.refs[i].ids = getActiveIdsFromModel(self.sheets.refs[i].model);
-      self.sheets.refs[i].names = getActiveNamesFromModel(self.sheets.refs[i].model);//reset names from 'all' to list of all actual names in ref model
+      self.refs[i].greedy = true;
+      self.refs[i].ids = getActiveIdsFromModel(self.refs[i].sheet);
+      self.refs[i].names = getActiveNamesFromModel(self.refs[i].sheet);//reset names from 'all' to list of all actual names in ref model
     } else {
-      self.sheets.refs[i].greedy = false;
-      self.sheets.refs[i].names = names;
-      var result = getIdsFromNames(self.sheets.refs[i].model, names);//store result and check for errors
+      self.refs[i].greedy = false;
+      self.refs[i].names = names;
+      var result = getIdsFromNames(self.refs[i].sheet, names);//store result and check for errors
       if (result.error){//log any lookup errors
-        self.errors['refs'][i] = 'ERROR: a list of ' + self.sheets.refs[i].nameKey + ' ids could not be retrieved because the user tried to search for a '+ self.sheets.refs[i].nameKey +'name that does not exist.';
+        self.errors['refs'][i] = 'ERROR: a list of ' + self.refs[i].nameKey + ' ids could not be retrieved because the user tried to search for a '+ self.refs[i].nameKey +'name that does not exist.';
       } else {//if no errors, add retrieved ids to the view object's ref object
-        self.sheets.refs[i].ids = result;
+        self.refs[i].ids = result;
       }
     }
   };
 
   function initRefIdsFromRel(){
-    /*this.sheets.refs[0].ids = this.rel.sheets.refs[1].ids;
-    this.sheets.refs[0].names = this.rel.sheets.refs[1].names;
-    this.sheets.refs[1].ids = this.rel.sheets.refs[0].ids;
-    this.sheets.refs[1].names = this.rel.sheets.refs[0].names;
+    /*this.refs[0].ids = this.rel.refs[1].ids;
+    this.refs[0].names = this.rel.refs[1].names;
+    this.refs[1].ids = this.rel.refs[0].ids;
+    this.refs[1].names = this.rel.refs[0].names;
   */
   };
 
   //** ^^^ INITIALIZE REFS ^^^ **///
 
-  //** vvv INITIALIZE DATES vvv **//
 
-  function initDatesFromParams(){
-    return {
-      start: self.p.dates.start.setToMidnight(),
-      end: self.p.dates.end.setToMidnight(),
-      weekMap: self.p.dates.start.getWeekMap()
-    }
-  };
-
-  function initDatesFromCache(){
-    return {
-      start: self.sheets.paramCache.data[0].start,
-      end: self.sheets.paramCache.data[0].end,
-      weekMap: self.sheets.paramCache.data[0].start.getWeekMap()
-    }
-  };
-
-  //** ^^^ INITIALIZE DATES ^^^ **//
 
   //** vvv INITIALIZE FILTERS vvv **//
 
   function initFilters(pfilters){
     if (self.errors.refs == undefined){//only proceed if no errors initializing refs
-      var view = self.view.name;
-      if (view == 'lookup'){//retroactively set params to include non-gredy refs if in lookup view
-        pfilters.lookup.matchRefs.ngRefs = self.getNonGreedyRefs();
-        var ngRefs = pfilters.lookup.matchRefs.ngRefs;
-      }
-
-      //create empty array to store filtering functions
-      var filterArr = [],
-        filters = {
-          // if a record's start time is before or after the start and end in params, filter it
-          date: {
+      var view = self.view.instance;
+        filterArr = [],//empty array to store filtering functions
+        filterParams = {//map of filter params corresponding to view instances
+          update:{matchAttrs: {attr: 'status', values: ['unassigned', 'assigned', 'delegated']}},
+          lookup: {matchRefs: {type: 'exclusive', ngRefs: self.getNonGreedyRefs()}}
+        },
+        filters = {//filter functions
+          date: {// if a record's start time is before or after the start and end in params, filter it
             args: {start: self.dates.start, end: self.dates.end},
             func: function(record, args){
               return (record.start.getTime() < args.start.getTime() || record.start.getTime() > args.end.getTime() + 86400000);
             }       
           },
-          //if a record attribute doesn't match the values for that attribute specified in params, filter it
-          matchAttrs: {
+          matchAttrs: {//if a record attribute doesn't match the values for that attribute specified in params, filter it
             args: {attr: undefined, values: undefined},
             func: function(record, args){
               if (args.values.indexOf(record[args.attr]) < 0){
@@ -1124,7 +1121,7 @@ function View(p){
               }
             }
           },
-          matchRefs: {
+          matchRefs: {//if a record's ref ids doesn't match view's active ref id's, filter it
             args: {type: undefined, ngRefs: undefined},
             func: function(record, args){
               //Logger.log('**Running matchRefs');
@@ -1153,14 +1150,13 @@ function View(p){
         };
 
       filterArr.push(filters.date);//always include date filter at first index of filters array
-
       //find filters given in params and set their arguments to those specified in params
-      for (var filter in pfilters[view]){//loop through filters corresponding to view given in params
-        for (var arg in pfilters[view][filter]){//loop through each fitler's args as given in params 
+      for (var filter in filterParams[view]){//loop through filters corresponding to view given in params
+        for (var arg in filterParams[view][filter]){//loop through each fitler's args as given in params 
           // Logger.log('pfilters['+view+']['+filter+']['+arg+']: ' + pfilters[view][filter][arg]);
           if (arg in filters[filter].args){//find arg names in filter that match arg names in params 
           // Logger.log('pfilters['+view+']['+filter+']['+arg+']: ' + pfilters[view][filter][arg]);
-            filters[filter].args[arg] = pfilters[view][filter][arg];//initialize filter arguments to values of corresponding args in params  
+            filters[filter].args[arg] = filterParams[view][filter][arg];//initialize filter arguments to values of corresponding args in params  
           }
         }
         filterArr.push(filters[filter]); //add initialized filter to filters array
@@ -1179,74 +1175,76 @@ function View(p){
 
   //** vvv INITIALIZE RECORD LIST vvv **//
 
-  function initRecordListFromModel(){
+  function initRecordList(){
     if (self.errors.refs == undefined){//only proceed if there were no errors initializing refs
-      var recordList = [];
-      for (var i = 0; i < self.sheets.model.data.length; i++){  
-        var record = self.sheets.model.data[i];
-        if (applyFilters(record)){//if a record matches filter criteria, skip it
-          continue;
-        } else {//if not, add it to record list
-          recordList.push(record);
-          Logger.log('Adding record!');
-        }
+      Logger.log('starting initRecordList()!');
+      self.recordList = [];
+      switch (self.view.init){
+        case 'fromUi':
+          initRecordListFromModel();
+          break;
+        case 'fromAltInstance':
+          initRecordListFromModel();
+          break;
+        case 'fromRange':
+          initRecordListFromSelf();
+          break;
+        case 'fromRel':
+          initRecordListFromRel();
+          break;
       }
-      for (var i = 0; i < recordList.length; i++) {//log record list values
-        for (var j in recordList[i]){
-          Logger.log ('recordList['+i+']['+j+']: ' + recordList[i][j]);
-        }
-      };
-      Logger.log('completed initRecordListFromModel()!');
-
-      if (recordList.length > 0){//log any errors
-        return recordList;
+      if (self.recordList.length > 0){
+        reconcileRefs();
+        Logger.log('Completed initRecordList!');
       } else {
-        self.errors['recordList'] = 'ERROR: there were no records retrieved for the specified reference ids.';
-        toast(getErrorStr(self.errors.recordList));
-        Logger.log(getErrorStr(self.errors.recordList));
-      }      
-    }      
+        logRefErrors();
+      }
+      // LOG RECORD LIST (for testing only)
+      // for (var i = 0; i < self.recordList.length; i++) {//log record list values
+      //   for (var j in self.recordList[i]){
+      //     Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
+      //   }
+      // };
+    }
   };
 
-    function initRecordListFromSelf(){
-    Logger.log('Running initRecordListFromSelf()');
-    var recordList = [];
+  function initRecordListFromModel(){
+    for (var i = 0; i < self.model.sheet.data.length; i++){  
+      if (!applyFilters(self.model.sheet.data[i])){//if a record matches filter criteria, skip it, if not, add it to the record list
+        self.recordList.push(self.model.sheet.data[i]);
+      }
+    }    
+  };
+
+  function initRecordListFromSelf(){
     if (self.view.type == 'list'){
-      for (var i = 0; i < self.sheets.self.data.length; i++){
-        if (self.sheets.self.data[i].id == undefined){//if no id is given (signifying a new record), populate record list row data from view row data
-          var recordListRow = getRecordListRowFromViewRow(self.sheets.self.data[i]);
+      for (var i = 0; i < self.view.sheet.data.length; i++){
+        if (self.view.sheet.data[i].id == undefined){//if no id is given (signifying a new record), populate record list row data from view row data
+          var recordListRow = getRecordListRowFromViewRow(self.view.sheet.data[i]);
         } else {//otherwise, populate record list row from volatile data from view row and stable data from model
-          var volatileData = getVDFromListRow(self.sheets.self.data[i]),
+          var volatileData = getVDFromListRow(self.view.sheet.data[i]),
             recordListRow = getRecordListRowFromVD(volatileData);
         }
-        recordList.push(recordListRow);
+        self.recordList.push(recordListRow);
       }
     } else {//for grid 
-      var map = self.sheets.cellmap;
+      var map = self.cache.cellmap.sheet;
       for (var i = 0; i < map.data.length; i++){
         var volatileData = getVDFromGridCell(map.data[i]),
           recordListRow = getRecordListRowFromVD(volatileData);
-        recordList.push(recordListRow);
+        self.recordList.push(recordListRow);
       }
     }
-    for (var i = 0; i < recordList.length; i++) {
-      Logger.log('recordList['+i+']: ');
-      for (var j in recordList[i]){
-        Logger.log('recordList['+i+']['+j+']: ' + recordList[i][j]);
-      } 
-    };
-    return recordList;
   }; 
 
   function getRecordListRowFromViewRow(row) {
     var rlRow = {};
-
     //define rl start and end attributes from view row date, start, and end attributes
     rlRow.start = new Date(row.date);
-    rlRow.end = rlRow.start;
+    rlRow.end = new Date(row.date);
     rlRow.start.setHours(row.start.getHours());
     rlRow.end.setHours(row.end.getHours());
-    
+
     for (var attr in row){
       if (attr == 'day' || attr == 'date' || attr == 'start' || attr == 'end'){//skip view row attributes used to define rl start and end
         continue;
@@ -1254,7 +1252,7 @@ function View(p){
         rlRow.am = getAmFromPeriod(row[attr]);
         rlRow.pm = getPmFromPeriod(row[attr]);
       } else if (isRef(attr)){//if view row attribute refers to a ref object, retrieve ref ids from ref name lookups
-        rlRow[attr + 'id'] = getIdFromName(self.sheets.refs[attr+'s'].model, row[attr]);
+        rlRow[attr + 'id'] = getIdFromName(self.refs[getRefIndexFromClass(attr+'s')].sheet, row[attr]);
       } else {//otherwise populate rl attributes with attributes from view row
         rlRow[attr] = row[attr] == undefined ? undefined : row[attr];
       }
@@ -1264,13 +1262,13 @@ function View(p){
 
   function getVDFromListRow(row){
     var vd = {id: row.id};
-    for (var i = 0; i < self.volatiles.length; i++){
-      var vol = self.volatiles[i];
+    for (var i = 0; i < self.vols.length; i++){
+      var vol = self.vols[i];
       if (vol.indexOf('id') > 0){//if volatile is a ref id, look up ref id from ref name
         var nameKey = vol.slice(0, -2),
           class = nameKey+'s',
           index = getRefIndexFromClass(class);
-        vd[vol] = row[nameKey] == undefined ? undefined : getIdFromName(self.sheets.refs[index].model, row[nameKey]); //ternary handles empty cells 
+        vd[vol] = row[nameKey] == undefined ? undefined : getIdFromName(self.refs[index].sheet, row[nameKey]); //ternary handles empty cells 
       } else {
         vd[vol] = row[vol];
       }
@@ -1279,7 +1277,7 @@ function View(p){
   };
 
   function getVDFromGridCell(m){
-    var cell = self.sheets.self.data[m.row - self.sheets.self.row.first][self.sheets.self.headers[m.col - self.sheets.self.col.first]].split(', '),
+    var cell = self.view.sheet.data[m.row - self.view.sheet.row.first][self.view.sheet.headers[m.col - self.view.sheet.col.first]].split(', '),
       str = cell[m.index],
       refName = str.slice(0, str.indexOf('-')).trim(),
       code = str.slice(str.indexOf('-'), str.length).trim(),
@@ -1287,8 +1285,8 @@ function View(p){
         id: m.recordid,
         status: getStatusFromCode(code)
       },
-      refId = refName != '' ? getIdFromName(self.sheets.refs[1].model, refName) : undefined,
-      idKey = self.sheets.refs[1].idKey;
+      refId = refName != '' ? getIdFromName(self.refs[1].sheet, refName) : undefined,
+      idKey = self.refs[1].idKey;
     vd[idKey] = refId;
 
     return vd;
@@ -1301,9 +1299,9 @@ function View(p){
     for (var attr in vd){//retrieve all volatile values from vd{}
       row[attr] = vd[attr] == undefined ? '' : vd[attr];//translate undefined cell values to an empty string
     }
-    for (var attr in self.sheets.model.data[id]){//retrieve all stable values (ie values not attributes of vd{}), from model
+    for (var attr in self.model.sheet.data[id]){//retrieve all stable values (ie values not attributes of vd{}), from model
       if (!(attr in vd)){
-        row[attr] = self.sheets.model.data[id][attr];  
+        row[attr] = self.model.sheet.data[id][attr];  
       }
     }
     return row;
@@ -1322,96 +1320,101 @@ function View(p){
     return false;//if no filters return true, return false
   };
 
+  function logRefErrors(){
+    self.errors['recordList'] = 'ERROR: there were no records retrieved for the specified reference ids.';
+    toast(getErrorStr(self.errors.recordList));
+    Logger.log(getErrorStr(self.errors.recordList));
+  };
+
   //** ^^^ INITIALIZE RECORD LIST ^^^ **//
 
   //** vvv INITIALIZE GRID MAP vvv **//
 
   function initGridMap(){
-    Logger.log('Running initGridMap()!');
-    var names = self.sheets.refs[0].names.sort(),
-      gridMap = [];
-    Logger.log('names: ' + names);
-    for (var i = 0; i < names.length; i++){
-      gridMap.push({
-        name: names[i],
-        info: {
-          mon: {
-            am: {recordIds: [], col: 2}, 
-            pm: {recordIds: [], col: 3}
-          },
-          tue: {
-            am: {recordIds: [], col: 4}, 
-            pm: {recordIds: [], col: 5}
-          },
-          wed: {
-            am: {recordIds: [], col: 6}, 
-            pm: {recordIds: [], col: 7}
-          },
-          thu: {
-            am: {recordIds: [], col: 8}, 
-            pm: {recordIds: [], col: 9}
-          },
-          fri: {
-            am: {recordIds: [], col: 10}, 
-            pm: {recordIds: [], col: 11}
-          },
-          sat: {
-            am: {recordIds: [], col: 12}, 
-            pm: {recordIds: [], col: 13}
-          },
-          sun: {
-            am: {recordIds: [], col: 14}, 
-            pm: {recordIds: [], col: 15}
-          }          
-        }
-      });      
+    if(self.errors.recordList == undefined){
+      Logger.log('Running initGridMap()!');
+      var names = self.refs[0].names.sort();
+      self.gridMap = [];
+      // Logger.log('names: ' + names);
+      for (var i = 0; i < names.length; i++){
+        self.gridMap.push({
+          name: names[i],
+          info: {
+            mon: {
+              am: {recordIds: [], col: 2}, 
+              pm: {recordIds: [], col: 3}
+            },
+            tue: {
+              am: {recordIds: [], col: 4}, 
+              pm: {recordIds: [], col: 5}
+            },
+            wed: {
+              am: {recordIds: [], col: 6}, 
+              pm: {recordIds: [], col: 7}
+            },
+            thu: {
+              am: {recordIds: [], col: 8}, 
+              pm: {recordIds: [], col: 9}
+            },
+            fri: {
+              am: {recordIds: [], col: 10}, 
+              pm: {recordIds: [], col: 11}
+            },
+            sat: {
+              am: {recordIds: [], col: 12}, 
+              pm: {recordIds: [], col: 13}
+            },
+            sun: {
+              am: {recordIds: [], col: 14}, 
+              pm: {recordIds: [], col: 15}
+            }          
+          }
+        });      
+      }
+      initGridMapRecordIds();
+      Logger.log('finished running initGridMap()!');
     }
-    initGridMapRecordIds(gridMap);
-    Logger.log('finished running initGridMap()!');
-    return gridMap;
   };
 
-  function initGridMapRecordIds(gridMap){
+  function initGridMapRecordIds(){
     Logger.log('running initGridMapRecordIds()');
-    for (var i = 0; i < gridMap.length; i++){
-      for (var day in gridMap[i].info){
-        for (var period in gridMap[i].info[day]){
-          gridMap[i].info[day][period].recordIds = initRecordIdsForGridCell(gridMap, i, day, period);
+    for (var i = 0; i < self.gridMap.length; i++){
+      for (var day in self.gridMap[i].info){
+        for (var period in self.gridMap[i].info[day]){
+          self.gridMap[i].info[day][period].recordIds = initRecordIdsForGridCell(i, day, period);
         }
       }
     }
     Logger.log('finished running initGridRecordIds()!'); 
   };
 
-  function initRecordIdsForGridCell(gridMap, index, day, period){
+  function initRecordIdsForGridCell(index, day, period){
 
     var am = (period == 'am') ? true : false,
       pm = !am,
       date = self.dates.weekMap[day],
-      idKey = self.sheets.refs[0].idKey,
-      id = getIdFromName(self.sheets.refs[0].model, gridMap[index].name),
+      idKey = self.refs[0].idKey,
+      id = getIdFromName(self.refs[0].sheet, self.gridMap[index].name),
       ids= [];
       // Logger.log('date: ' + date);
       // Logger.log('id:' + id);
       // Logger.log('idKey: ' + idKey);
 
     for (var i = 0; i < self.recordList.length; i++){
-      var record = self.recordList[i];
-      // Logger.log('record['+idKey+']: ' + record[idKey]);
-      // Logger.log('record.start: ' + record.start);
+      // Logger.log('self.recordList['+i+']['+idKey+']: ' + self.recordList[i][idKey]);
+      // Logger.log('self.recordList['+i+'].start: ' + self.recordList[i].start);
       if (
-        record[idKey] == id &&
-        record.am == am && 
-        record.pm == pm && 
-        record.start.getYear() == date.getYear() &&
-        record.start.getMonth() == date.getMonth() &&
-        record.start.getDate() == date.getDate()
+        self.recordList[i][idKey] == id &&
+        self.recordList[i].am == am && 
+        self.recordList[i].pm == pm && 
+        self.recordList[i].start.getYear() == date.getYear() &&
+        self.recordList[i].start.getMonth() == date.getMonth() &&
+        self.recordList[i].start.getDate() == date.getDate()
       ) {
-        Logger.log('added' + record.id + ' to gridMap.');
-        ids.push(record.id);
+        // Logger.log('added ' + self.recordList['+i+'].id + ' to gridMap.');
+        ids.push(self.recordList[i].id);
       }
     }
-    Logger.log('finished running initGridCellRecordIds()')
     return ids;
   };
 
@@ -1420,25 +1423,25 @@ function View(p){
   //** vvv INITIALIZE RANGE vvv **//
   function initRange(){
     Logger.log('Running initRange()!')
-    if (self.recordList.error == undefined){//only proceed if there were no errors retrieving record list
+    if (self.errors.recordList == undefined){//only proceed if there were no errors retrieving record list
+      self.range = [];
       if (self.view.type == 'list'){
         return initListRange();
       } else {
         return initGridRange();
       }      
     }
+    Logger.log('Finished running initRange()!');
   };
 
   function initListRange(){
-    var headers = self.sheets.self.headers;
-      range = [];
+    var headers = self.view.sheet.headers;
     for (var i = 0; i < self.recordList.length; i++)  {
-      range[i] = [];
+      self.range[i] = [];
       for (var j = 0; j < headers.length; j++){
-        range[i].push(initListRangeCellVal(self.recordList[i], headers[j]));
+        self.range[i].push(initListRangeCellVal(self.recordList[i], headers[j]));
       }
     }
-    return range;
   };
 
   function initListRangeCellVal(record, header){
@@ -1447,7 +1450,7 @@ function View(p){
     } else if (isRef(header)){//if the header refers to a ref name, return the name corresponding to the ref id     
       var idKey = header + 'id',
         class = header + 's';
-      return (record[idKey] == undefined || record[idKey] == '') ? '' : getNameFromId(self.sheets.refs[getRefIndexFromClass(class)].model, record[idKey]);
+      return (record[idKey] == undefined || record[idKey] == '') ? '' : getNameFromId(self.refs[getRefIndexFromClass(class)].sheet, record[idKey]);
     } else {//otherwise format the value according to the following patterns
       var headers = {
         day: record.start.getDayName(),
@@ -1462,11 +1465,9 @@ function View(p){
 
   function initGridRange(){
     Logger.log('running initGridRange()!');
-    var range = [];
     for (var i = 0; i < self.gridMap.length; i ++){
-      range.push(initGridRangeRow(i));
+      self.range.push(initGridRangeRow(i));
     }
-    return range;  
   };
 
   function initGridRangeRow(i){
@@ -1481,29 +1482,29 @@ function View(p){
   };
 
   function initGridRangeCellVals(recordIds){
-    Logger.log('Running initGridRangeCellVals()!');
+    // Logger.log('Running initGridRangeCellVals()!');
     var cell = [];
-    Logger.log('recordIds: ' + recordIds);
+    // Logger.log('recordIds: ' + recordIds);
     for (var i = 0; i < recordIds.length; i++){
       var record = getRecordFromId(recordIds[i]);
-      for (var j in record){
-        Logger.log('record['+j+']: ' + record[j]);
-      }
-      Logger.log('record[self.sheets.refs[1].idKey]: ' + record[self.sheets.refs[1].idKey]);
-      Logger.log('recordIds['+i+']: ' + recordIds[i]);
-      Logger.log('record: ' + record);
-      Logger.log('idKey: ' + self.sheets.refs[1].idKey);
-      //Logger.log('refName: ' + record[self.sheets.refs[1].idKey] == undefined ? '' : getNameFromId(self.sheets.refs[1].model, record[self.sheets.refs[1].idKey]));
-      Logger.log('status: ' + getCodeFromStatus(record.status));
+      // for (var j in record){
+      //   Logger.log('record['+j+']: ' + record[j]);
+      // }
+      // Logger.log('record[self.refs[1].idKey]: ' + record[self.refs[1].idKey]);
+      // Logger.log('recordIds['+i+']: ' + recordIds[i]);
+      // Logger.log('record: ' + record);
+      // Logger.log('idKey: ' + self.refs[1].idKey);
+      // //Logger.log('refName: ' + record[self.refs[1].idKey] == undefined ? '' : getNameFromId(self.refs[1].sheet, record[self.refs[1].idKey]));
+      // Logger.log('status: ' + getCodeFromStatus(record.status));
       //var record = getRecordFromId(recordIds[i]),
-      var idKey = self.sheets.refs[1].idKey,
-        refName = (record[idKey] == undefined || record[idKey] == '')? '' : getNameFromId(self.sheets.refs[1].model, record[idKey]),
+      var idKey = self.refs[1].idKey,
+        refName = (record[idKey] == undefined || record[idKey] == '')? '' : getNameFromId(self.refs[1].sheet, record[idKey]),
         status = getCodeFromStatus(record.status);
       cell.push(refName + ' ' + status);
     }
     cell = cell.join(', ');
-    Logger.log('Finished running initGridRangeCellVals()!');    
-    Logger.log('cell: ' + cell);
+    // Logger.log('Finished running initGridRangeCellVals()!');    
+    // Logger.log('cell: ' + cell);
     return cell;
   };
 
@@ -1534,17 +1535,17 @@ function updateCalendars(shifts, riders, restaurants, shiftList){
     var restId = shiftList[i].restaurantid,
       eventId = shiftList[i].eventid,
       statusCode = getStatusCode(riders, shiftList[i].riderid, shiftList[i].status);
-      Logger.log('restId: ' + restId);
-      Logger.log('eventId:' + eventId);
-      Logger.log('statusCode: ' + statusCode);
+      // Logger.log('restId: ' + restId);
+      // Logger.log('eventId:' + eventId);
+      // Logger.log('statusCode: ' + statusCode);
     //check to see if calendar events exist for all shifts
    if (eventId !== '' && eventId !== 'undefined' && eventId !== undefined){
       //if a event exists, update it
-      Logger.log('updating the event with eventId' + eventId);
+      // Logger.log('updating the event with eventId' + eventId);
       getEventById(calendars, restId, eventId).setTitle(statusCode);
    } else {
       //if not, create one
-      Logger.log('creating an event for the shift with shiftId: ' + shift.id);
+      // Logger.log('creating an event for the shift with shiftId: ' + shift.id);
       createEvent(calendars[shift.restaurantid].cal, shiftList, shiftList[i], statusCode);        
    }
   }
@@ -1630,11 +1631,11 @@ function updateCalendars(shifts, riders, restaurants, shiftList){
   };
 
   function getStatusCode(riders, riderid, status){
-    Logger.log('running getStatusCode()');
-    Logger.log('riderid: ' + riderid);
-    Logger.log('riderid.length > 0 ? : ' + riderid != '');
+    // Logger.log('running getStatusCode()');
+    // Logger.log('riderid: ' + riderid);
+    // Logger.log('riderid.length > 0 ? : ' + riderid != '');
     var rider = riderid != '' ? getNameFromId(riders, riderid) : '';
-    Logger.log ('rider: ' + rider);
+    // Logger.log ('rider: ' + rider);
     var  statusCodes = {
         unassigned: '???',
         assigned: '*' + rider + '? (a)',
