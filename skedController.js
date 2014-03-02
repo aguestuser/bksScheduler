@@ -37,6 +37,18 @@ function constructSheet(ss, ws){
         scheduleCellMaps: {
           key: '0AkfgEUsp5QrAdEE4eUhDT2RnNmlwRnQ0dkRsSHZlS3c',
           worksheets: ['grid', 'weekly', 'update', 'lookup']
+        },
+        availability: {
+          key: '0AkfgEUsp5QrAdG54d2VpakNXZEFsS05yRjByQmxwbmc',
+          worksheets: ['grid', 'weekly', 'lookup']
+        },
+        availabilityParams:{
+          key: '0AkfgEUsp5QrAdHBqa2tkTXlwVnBoY0M5cmxrOUtRMVE',
+          worksheets: ['grid', 'weekly','lookup']
+        },
+        availabilityCellMaps: {
+          key: '0AkfgEUsp5QrAdHloc1pSM0YtQjBxdjV2Qktrdzd4bHc',
+          worksheets: ['grid', 'weekly', 'lookup']
         }
       },
     sheet = new Sheet(sheets[ss].key, sheets[ss].worksheets.indexOf(ws));
@@ -233,7 +245,7 @@ function objectTranspose(obj){
   return arr;
 };
 
-//*UTILITY FUNCTIONS*
+//* vvv UTILITY FUNCTIONS vvv *//
 
 function getSsName(){
   return SpreadsheetApp.getActiveSpreadsheet().getName();
@@ -336,8 +348,6 @@ function getDayNum(dayName){
   return dayNames.indexOf(dayName);
 };
 
-/////////
-
 
 function getIdsFromNames(model, names){
   var ids = [];
@@ -358,17 +368,21 @@ function getIdFromName(model, name){
       return model.data[i].id;
     }
   }
-  var error = 'ERROR: there was no entity found with name: ' + name;
+  var error = 'ERROR: there was no ' + model.class.slice(0, -1) + ' found with name: ' + name;
   toast(error);
   Logger.log(error);
 };
 
-function getRecordsByIds(model, ids){
-  for (var i = 0; i < ids.length; i++){
-    records.push(getRecordById(model, id));
-  }
-  return records;
-};
+// function getRecordsFromModelByIds(model, ids){
+//   for (var i = 0; i < ids.length; i++){
+//     records.push(getRecordById(model, id));
+//   }
+//   return records;
+// };
+
+// function getRecordFromModelById(model, id){
+//   return model.data[id];
+// };
 
 function getActiveIdsFromModel(model){
   var ids = [];
@@ -386,10 +400,6 @@ function getActiveNamesFromModel(model){
   return names;
 }
 
-
-function getRecordById(model, id){
-  return model.data[id];
-};
 
 function getNamesFromIds(model, ids){
   var names = [];
@@ -416,154 +426,8 @@ function getRefIdFromRecord(record, refName){
   return record[refName + 'id'];
 };
 
-//*CREATE MENU BUTTONS
+//* ^^^ UTILITY FUNCTIONS ^^^ *//
 
-function createMenus() {
-    var menuEntries = [
-      {        
-        name: "Update View",
-          functionName: "initUpdateViewUi" 
-      },{
-          name: "Save Edits",
-          functionName: "updateShifts" 
-      }
-    ];
-    SpreadsheetApp.getActiveSpreadsheet().addMenu("Functions", menuEntries);
-};
-
-//*DISPLAY SHIFTS
-
-//initiate UI dialog
-function initUpdateViewUi(){
-
-  //get sheet and sheet index to determine view to pass to click handler
-  var ss = SpreadsheetApp.getActiveSpreadsheet().getName(),
-    ws = SpreadsheetApp.getActiveSheet().getName(),
-    sheet = constructSheet(ss, ws),
-  //retrieve view's current start and end dates from sheet data
-    curStart = new Date().getWeekStart(),
-    curEnd = curStart.incrementDate(6);
-    
-  //construct ui app
-  var app = UiApp.createApplication().setTitle('Update Schedule View').setWidth(200),
-    //construct panel to hold user input elements
-    panel = app.createVerticalPanel(),
-    //construct ui elements to retrive and store paramaters to pass to updateShiftsView()
-    class = app.createHidden('class', ss).setName('class').setId('class'),
-    instance = app.createHidden('instance', ws).setName('instance').setId('instance'),//store sheet name as 'view'
-    startLabel = app.createLabel('Start Date').setId('startLabel'),
-    start = app.createDateBox().setName('start').setId('start').setValue(curStart),
-    endLabel = app.createLabel('End Date').setId('endLabel'),
-    end = app.createDateBox().setName('end').setId('end').setValue(curEnd),
-    //define callback
-    submitHandler = app.createServerHandler('updateView')
-      .setId('submitHandler')
-      .addCallbackElement(class)
-      .addCallbackElement(instance)
-      .addCallbackElement(start)
-      .addCallbackElement(end);
-  Logger.log('instance: ' + instance);
-  //for lookup view, retrieve restaurants and riders from user input 
-  if (ws == 'lookup'){
-    var restaurantsLabel = app.createLabel('Restaurants').setId('restaurantsLabel'),    
-      restaurants = app.createTextBox().setName('restaurants').setId('restaurants').setValue('all'),
-      ridersLabel = app.createLabel('Riders').setId('ridersLabel'), 
-      riders = app.createTextBox().setName('riders').setId('riders').setValue('all'); 
-
-  } else { //for all other views, store 'all' restaurants as hidden paramater 
-    var restaurants = app.createHidden('restaurants', 'all').setName('restaurants').setId('restaurants'),
-      riders = app.createHidden('riders', 'all').setName('riders').setId('riders');
-  }
-  submitHandler
-    .addCallbackElement(restaurants)
-    .addCallbackElement(riders);
-
-  //define button to trigger callback
-  var submit = app.createButton('Submit!')
-      .addClickHandler(submitHandler);
-  //add app elements to each other (funky order here?)
-  panel
-    .add(startLabel)
-    .add(start)
-    .add(endLabel)
-    .add(end);
-  if (ws == 'lookup'){
-    panel
-      .add(restaurantsLabel)  
-      .add(restaurants)  
-      .add(ridersLabel) 
-      .add(riders);
-  } 
-  panel.add(submit);
-  
-  app
-    .add(panel);
-
-  //  sheet.g.getParent().show(app);
-  SpreadsheetApp.getActiveSpreadsheet().show(app);
-};
-
-///// vvv NEW UPDATE VIEW vvv //////
-
-//*SET VIEW*//
-function updateView(e){
-
-//initialize uiApp instance and parameters for shift View object
-var app = UiApp.getActiveApplication(), 
-  p = e.parameter,
-  params = {
-    view: {class: p.class, instance: p.instance, init: 'fromUi'},
-    model: {class: 'shifts', instance: 'index'},
-    refs: [{class: 'restaurants', instance: 'info', names: p.restaurants}, {class: 'riders', instance:'info', names: p.riders}],
-    dates:{start: p.start, end: p.end}
-  };
-
-  //initialize schedule view
-  schedule = new View(params);
-  //print from schedule view to spreadsheet
-  schedule.writeToSelf();
-  //close ui
-  return app.close();
-};
-
-function updateShifts(){
-
-  var sp = {
-        view: {class: 'schedule', instance: getWsName(), init: 'fromRange'},
-        model: {class: 'shifts', instance: 'index'},
-        refs: [{class: 'restaurants', instance: 'info'}, {class: 'riders', instance:'info'}],
-        vols: {grid: ['riderid', 'status'], list: ['riderid', 'status', 'billing', 'urgency']}
-      };
-
-
-  schedule = new View(sp);
-  schedule.writeToModel().refreshViews(['grid', 'weekly', 'update', 'lookup']);
-
-  // var ap = {
-  //   view: {class: 'availability', instance: 'weekly', init: 'fromRel'},
-  //   model: {class: 'availabilities', instance: 'index'},
-  //   refs: [{class: 'riders', instance: 'info'}, {class: 'restaurants', instance: 'info'}],//maybe not necess?
-  //   dates: {start: schedule.dates.start, end: schedule.dates.end},
-  //   rel: {view: schedule, join: 'shiftid', vols: ['status', 'restaurantid', 'start', 'end'])
-  // };
-
-  // avail = new View (ap);
-
-  // if (schedule.getConflictsWith(avail).hasConflicts){
-  //   schedule.highlightConflicts();
-  // } else {
-  //   avail
-  //     .reconcileWith(schedule)
-  //     .refreshViews(['grid', 'weekly', 'lookup']);
-  //   schedule
-  //     .refreshViews(['grid', 'weekly', 'update', 'lookup'])
-  //     .sendEmails()
-  //     .writeToCalendar();
-  // }
-
-
-
-};
 
 //*** VIEW CONSTRUCTOR FUNCTION ***//
 
@@ -592,16 +456,14 @@ function View(p){
     cellmap: {class: this.view.class+'CellMaps', instance: this.view.name, sheet: constructSheet(this.view.class+'CellMaps', this.view.instance)}
   };
 
+  if (this.view.init =='fromRel'){this.rel = p.rel;}
   initDates();
   initRefs();    
 
-  if (this.view.init == 'fromUi' || this.view.init == 'fromAltInstance'){
-    Logger.log('initializing filters!');
-    this.filters = initFilters();
-  } else if (this.view.init == 'fromRange'){
+  if (this.view.init == 'fromRange'){
     this.vols = p.vols[this.view.type];
-  } else if (this.view.init =='fromRel'){
-    this.rel = p.rel;
+  } else {
+    this.filters = initFilters();
   }
   
   initRecordList();//array of objects: each object is a record to be displayed in the view
@@ -658,22 +520,21 @@ function View(p){
 
   this.writeToModel = function(){
     Logger.log('Running '+ this.view.class +'.writeToModel()!')
-    var model = this.model.sheet;
-    for (var i = 0; i < this.recordList.length; i++){//match record list rows to model rows by id
+    for (var i = 0; i < this.recordList.length; i++){//match record list rows to this.model.sheet rows by id
       var id = this.recordList[i].id;
       if (id == undefined || id == 'new'){//if the view's id attr indicates a new record, create one 
         this.writeNewRecordToModel(this.recordList[i], i);
-      } else {//otherwise, overwrite all cells in model whose values don't match those in the record list
+      } else {//otherwise, overwrite all cells in this.model.sheet whose values don't match those in the record list
         for (var j = 0; j< this.vols.length; j++){
           var vol = this.vols[j];
-          if (this.recordList[i][vol] != model.data[id][vol]){
-            model.updateCell(model.getRowNum(id), model.getColNum(vol), this.recordList[i][vol]);
+          if (this.recordList[i][vol] != this.model.sheet.data[id][vol]){
+            this.model.sheet.updateCell(this.model.sheet.getRowNum(id), this.model.sheet.getColNum(vol), this.recordList[i][vol]);
           }
         }        
       }
     }
-    toast('Updated '+ model.g.getParent().getName() +' model!');
-    this.model.sheet = constructSheet(this.view.sheet.class, this.view.sheet.instance);//refresh view object's virtual copy of model
+    this.model.sheet = constructSheet(this.view.sheet.class, this.view.sheet.instance);//refresh view object's copy of model to reflect changes just written to it
+    toast('Updated '+ this.model.sheet.g.getParent().getName() +' this.model.sheet!');
     Logger.log('Finished running '+ this.view.class +'.writeToModel()!')
     return this;
   };
@@ -719,7 +580,7 @@ function View(p){
      
       var altView = new View(p);//construct view object for other view instance
       altView.writeToSelf();//call .writeToSelf() to refresh the view instance
-      toast('Updated ' + instances[i] + ' view!');
+      toast('Updated ' + this.view.class + ' ' + instances[i] + ' view!');
     }
     Logger.log('Finished running .refreshViews()!');
     return this;
@@ -727,80 +588,171 @@ function View(p){
 
 
   this.getConflictsWith = function(View){
-    var viewRl = this.getRecordsSortedByRef(this.refs[0]),
-      relRl = View.getRecordsSortedByRef(View.refs[1]);
-    this.conflicts = getConflicts(viewRl, relRl);
-    setConflictStatuses(this.conflicts);
+    Logger.log('running .getConflictsWith()');
+    toast('Checking for conflicts...')
+    var viewRl = this.getRecordsSortedByRef(this.refs[1]),
+      relRl = View.getRecordsSortedByRef(View.refs[0]);
+    getConflicts(viewRl, relRl);
+    Logger.log('finished running .getConflictsWith()');    
     return this;
   };
 
-  this.hasConflicts = function(){
-    if (this.conflicts.length > 0){return true;} else{return false;}  
-  };
-
-  this.highlightConflicts = function(){
-    var range = [];
-    for (var i = 0; i < this.conflicts.length; i++) {
-      if (this.view.type == 'list'){
-        range = this.view.sheet.g.getRange(getRowFromRecordId(conflicts[i]), this.view.sheet.col.first, 1, this.view.sheet.col.getLast());
-      } else {
-        var gc = getGridRowColFromRecordId(conflicts[i].viewid),
-          row = gc.row,
-          col = gc.col,
-          range = this.view.sheet.g.getRange(row, col, 1, 1)  
-      }
-        range.setBackground('#FF00FF');
-    }
-  };
-
-  /*
-  this.reconcileWith = function (View, matchId, vols){
-    for (var i = 0; i < View.recordList.length; i++) {
-      for (var j = 0; j < recordList.length; j++){
-        if(this.recordList[i][matchId] == View.recordList)        
-      }
-    }
-  };
-  */
-
   function getConflicts(viewRl, relRl){   
-    for (var ref in viewRl) {
-      for (var i = 0; i < viewRl[ref].length; i++) {
-        var r1 = viewRl[ref][i];
-        for (var j = 0; j < relRl[ref].length; j++){
-          if (viewRl[ref][i].start.getDate() == relRl[ref][j].date && (viewRl[ref][i].am == relRl[ref][j].am || viewRl[ref][i].pm == relRl[ref][j].pm)){//match on day and period
-            if (relRl[ref][j].status == 'not free'){
-              conflicts.push({viewid: viewRl[ref][i].id, relid: rel2[ref][id]});//?????
+    Logger.log('running getConflicts()');
+    self.conflicts = [];
+    self.noConflicts = [];
+    for (var refId in viewRl) {
+      for (var i = 0; i < viewRl[refId].length; i++) {
+        var r1 = viewRl[refId][i];
+        for (var j = 0; j < relRl[refId].length; j++){
+          if (viewRl[refId][i].start.getDate() == relRl[refId][j].start.getDate() && (viewRl[refId][i].am == relRl[refId][j].am || viewRl[refId][i].pm == relRl[refId][j].pm)){//match on day and period
+            if (relRl[refId][j].status == 'not free'){
+              Logger.log('found conflict.');
+              self.conflicts.push({viewid: viewRl[refId][i].id, relid: relRl[refId][j].id});
+            } else {
+              self.noConflicts.push({viewid: viewRl[refId][i].id, relid: relRl[refId][j].id});
             }
           }
         }
       }
     }
+
+    // //LOG CONFLICTS (for testing)
+    for (var i = 0; i < self.conflicts.length; i++) {
+      Logger.log('self.conflicts[i]: ' + self.conflicts[i]);
+      for (var j in self.conflicts[i])
+        Logger.log('self.conflicts['+i+']['+j+']: ' + self.conflicts[i][j]);
+    };
+    //LOG NOCONFLICTS (for testing)
+    for (var i = 0; i < self.noConflicts.length; i++) {
+      Logger.log('self.conflicts[i]: ' + self.conflicts[i]);
+      for (var j in self.noConflicts[i])
+        Logger.log('self.noConflicts['+i+']['+j+']: ' + self.noConflicts[i][j]);
+    };    
+    Logger.log('finished running getConflicts()');
   };
 
-  function setConflictStatuses(conflicts){
-    for (var i = 0; i < conflicts.length; i++) {
-        self.recordList[conflicts[i].viewid].conflict = true;
-    }
+  this.showConflicts = function(){
+    Logger.log('running .showConflicts()');
+    if (this.conflicts.length > 0){
+      toast('Conflicts found! Highlighted rows conflict with ' + this.refs[1].class + ' ' + this.rel.view.view.class);
+      handleConflicts();
+    } else {
+      toast('No conflicts found!');
+    }      
+    handleNoConflicts();
+    Logger.log('finished running .showConflicts()');
   };
+
+  function handleConflicts(){
+    for (var i = 0; i < self.conflicts.length; i++) {
+      self.recordList[self.conflicts[i].viewid].status = 'not free';//set status in record list     
+      if (self.view.type == 'list'){//reflect status in list row
+        var statusCell = self.view.sheet.g.getRange(getRowFromRecordId(self.conflicts[i].viewid), self.view.sheet.headers.indexOf('status') + 1),//get range coordinates for cell showing record's status attr
+          recordRow = self.view.sheet.g.getRange(getRowFromRecordId(self.conflicts[i].viewid), self.view.sheet.col.first, 1, self.view.sheet.col.getLast());//get range coordinates for row containing record
+        statusCell.setValue('not free');//set value of cell containing status attribute to 'not free'
+        recordRow.setBackground('#FF00FF');//set background of row containing record to hot pink
+      } else if (self.view.type == 'grid'){//reflect status in grid cell
+        var gc = getGridRowColFromRecordId(self.conflicts[i].viewid),//get row/col coordinates for gric cell containing record
+          recordCell = self.view.sheet.g.getRange(gc.row, gc.col),//use r/c coordinates to identify cell's range location
+          newVal = recordCell.getValue().slice(0,-2).concat('-n');//set value of code in range to '-' (corresponds to 'not free') 
+        recordCell.setValue(newVal);
+      }
+    }    
+  };
+
+  function handleNoConflicts(){
+    Logger.log('running handleNoConflicts()');
+    Logger.log('self.noConflicts.length: ' + self.noConflicts.length);
+    for (var i = 0; i < self.noConflicts.length; i++) {
+      if (self.view.type == 'list'){//unhighlight noConflict rows that are still pink (because they used to contain a conflict)
+        var recordRow = self.view.sheet.g.getRange(getRowFromRecordId(self.noConflicts[i].viewid), self.view.sheet.col.first, 1, self.view.sheet.col.getLast());
+         if(recordRow.getBackground()== '#FF00FF'){
+          recordRow.setBackground('#FFFFFF');
+        }
+      }
+      self.getRecordFromId(self.noConflicts[i].viewid)[self.rel.join] = self.noConflicts[i].relid;//set the record's join id to the id of the corresponding record in the view's rel
+      var viewJoinRange = self.model.sheet.g.getRange(self.model.sheet.getRowNum([self.noConflicts[i].viewid]), self.model.sheet.getColNum(self.rel.join));//only update join id in model if it is different from current join id val
+      if (viewJoinRange.getValue()!= self.noConflicts[i].relid){viewJoinRange.setValue(self.noConflicts[i].relid);}
+      // //LOG JOIN VALUES (for testing) 
+      // Logger.log('self.getRecordFromId('+self.noConflicts[i].viewid+')['+self.rel.join+']: ' + self.getRecordFromId(self.noConflicts[i].viewid)[self.rel.join]);
+
+      self.rel.view.getRecordFromId(self.noConflicts[i].relid)[self.rel.view.rel.join] = self.noConflicts[i].viewid;//set the join id of the corresponding record in the view's rel to the id of this record
+      var relJoinRange = self.rel.view.model.sheet.g.getRange(self.rel.view.model.sheet.getRowNum([self.noConflicts[i].relid]), self.rel.view.model.sheet.getColNum(self.rel.view.rel.join));//only update join id in model if it is different from current join id val
+      if (relJoinRange.getValue()!= self.noConflicts[i].viewid){relJoinRange.setValue(self.noConflicts[i].viewid);}      
+      // // LOG JOIN VALUES (for testing)
+      // Logger.log('self.rel.view.getRecordFromId('+self.noConflicts[i].relid+')['+self.rel.view.rel.join+']: ' + self.rel.view.getRecordFromId(self.noConflicts[i].relid)[self.rel.view.rel.join]);
+
+    };
+    Logger.log('finished running unhighlightNoConflicts()');
+  };
+
+  this.writeFromRel = function (){
+    Logger.log('Running ' + this.view.class + '.writeFromRel()');
+    var rel = this.rel.view;
+    for (var i = 0; i < this.rel.view.recordList.length; i++) {//loop through foregin record list
+      var viewid = this.rel.view.recordList[i][this.rel.view.rel.join],//write join ids to models
+        relid = this.rel.view.recordList[i].id;
+      if (viewid !== '' && viewid !== undefined){
+        Logger.log('updating!');
+        for (var j = 0; j < this.rel.vols.length; j++) {//loop through rel volatiles
+          var vol = this.rel.vols[j];
+          Logger.log('vol: ' + vol);
+          if (this.getRecordFromId(viewid)[vol] != this.rel.view.recordList[i][vol]){//match on join id & compare vol values between rels, write from rel if values don't match
+            this.model.sheet.updateCell(this.model.sheet.getRowNum(viewid), this.model.sheet.getColNum(vol), this.rel.view.recordList[i][vol]);
+          }
+        }
+      }        
+    }
+    this.writeToSelf();
+    this.model.sheet = constructSheet(this.view.sheet.class, this.view.sheet.instance);//refresh view object's copy of model to reflect changes just written to it
+    toast('Updated ' + this.view.class + ' model from ' + this.rel.view.view.class + ' view.');//alert user
+    Logger.log('Running ' + this.view.class + '.writeFromRel()');
+    return this;
+  };
+
+
 
 
   //**ACCESSOR METHODS **//
 
-  this.getRecordsSortedByRef = function (ref){
-    var records = {};
-    for (var i = 0; i < ref.ids.length; i++) {
-      records[ref.ids[i]]=[];
-      for (var j = 0; j < self.recordList.length; j++){
-        if (recordList[j][ref.idKey] = ref.ids[i]){
-          records[ref.ids[i]].push(recordList[j]);
-        }        
+  function initRecordAccessors(){
+
+    self.getRecordsSortedByRef = function (ref){
+      Logger.log('running getRecordsSortedByRef('+ref.class+')');
+      var records = {};
+      // for (var j in ref){
+      //   Logger.log('ref['+j+']: ' + ref[j]);
+      // }
+      Logger.log('ref.ids: ' + ref.ids);
+      for (var i = 0; i < ref.ids.length; i++) {
+        records[ref.ids[i]]=[];
+        for (var j = 0; j < self.recordList.length; j++){
+          if (self.recordList[j][ref.idKey] == ref.ids[i]){
+            records[ref.ids[i]].push(self.recordList[j]);
+          }        
+        }
       }
-    }
-    return records;
+      Logger.log('finished running getRecordsSortedByRef('+ref.class+')');
+      for (var refId in records){
+        for (var j=0; j<records[refId].length; j++){
+          for (var k in records[refId][j]){
+            Logger.log('records['+refId+']['+j+']['+k+']: ' + records[refId][j][k]);             
+          }
+        }
+      }
+      return records;
+    };
+
+    self.getRecordFromId = function(id){
+      for (var i = 0; i < self.recordList.length; i++) {
+        if (self.recordList[i].id == id) {return self.recordList[i];} 
+      };
+    };
+
   };
 
-  function initGreedyRefAccessors(){
+  function initRefAccessors(){
     
     self.getNonGreedyRefs = function(){
       var ngRefs = [];
@@ -861,6 +813,7 @@ function View(p){
   };
 
   function reconcileRef(ref){
+    Logger.log('running reconcileRef('+ref.class+')')
     if (self.recordList != undefined){
       var idKey = ref.idKey,
         oldNames = ref.names,
@@ -903,25 +856,18 @@ function View(p){
     return self.getRecordsSortedByRef(ref)[id];
   };
 
-  function getRecordFromId(id){
-    for (var i = 0; i < self.recordList.length; i++) {
-      if (self.recordList[i].id == id) {return self.recordList[i];} 
-    };
-  };
-
-
   function getRowFromRecordId(id){
     for (var i = 0; i < self.range.length; i++) {
-      if (self.range[i][self.view.sheet.headers.indexOf('id')]){
+      if (self.range[i][self.view.sheet.headers.indexOf('id')] == id){
         return i + 2;
       }
     };
   };
 
   function getGridRowColFromRecordId(id){
-    for (var i = 0; i < self.cellmap.length; i++) {
-      if (cellmap[i].recordid == id)
-        return {row: cellmap[i].row, col: cellmap[i].col};
+    for (var i = 0; i < self.cache.cellmap.sheet.data.length; i++) {
+      if (self.cache.cellmap.sheet.data[i].recordid == id)
+        return {row: self.cache.cellmap.sheet.data[i].row, col: self.cache.cellmap.sheet.data[i].col};
     };
   };
 
@@ -959,7 +905,8 @@ function View(p){
       delegated: '-d',
       confirmed: '-c',
       cancelled: '-x',
-      notfree: '-n'
+      free: '-f',
+      'not free': '-n'
     }
     return codes[status];
   };
@@ -971,7 +918,8 @@ function View(p){
       '-d': 'delegated',
       '-c': 'confirmed',
       '-x': 'cancelled',
-      '-n': 'notfree'
+      '-f': 'free',
+      '-n': 'not free'
     }
     return statuses[code];
   };
@@ -1000,8 +948,9 @@ function View(p){
       case 'fromRange':
         initDatesFromCache();
         break;
-      // case 'fromRel'
-      //   initDatesFromRel();
+      case 'fromRel':
+        initDatesFromRel();
+        break;
     }
   }
 
@@ -1014,12 +963,15 @@ function View(p){
   };
 
   function initDatesFromCache(){
-    Logger.log('')
     self.dates = {
       start: self.cache.params.sheet.data[0].start,
       end: self.cache.params.sheet.data[0].end,
       weekMap: self.cache.params.sheet.data[0].start.getWeekMap()
     }
+  };
+
+  function initDatesFromRel(){
+    self.dates = self.rel.view.dates;
   };
 
   //** ^^^ INITIALIZE DATES ^^^ **//
@@ -1030,39 +982,40 @@ function View(p){
     Logger.log('Running initRefs()');
     self.refs = [];
     
-    for (var i = 0; i < p.refs.length; i++){
-      Logger.log('Initalizing ref for ref with class: ' + p.refs[i].class + ' and instance: ' + p.refs[i].instance);
-      self.refs[i] = {
-        class: p.refs[i].class,
-        instance: p.refs[i].instance,
-        sheet: constructSheet(p.refs[i].class, p.refs[i].instance),
-        nameKey: p.refs[i].class.slice(0, -1),
-        idKey: p.refs[i].class.slice(0, -1) + 'id'
-      };
-      if (self.view.init == 'fromRel'){
-        initRefNamesAndIdsFromRel(p.refs, i);
-      } else {
+    if (self.view.init == 'fromRel'){
+      Logger.log('initializing refs from rel')
+      self.refs[0] = self.rel.view.refs[1];
+      Logger.log('initialized ref with class '+self.refs[0].class+' and instance ' + self.refs[0].instance);
+      self.refs[1] = self.rel.view.refs[0];
+      Logger.log('initialized ref with class '+self.refs[1].class+' and instance ' + self.refs[1].instance);
+    } else {
+      for (var i = 0; i < p.refs.length; i++){
+        Logger.log('Initalizing ref for ref with class: ' + p.refs[i].class + ' and instance: ' + p.refs[i].instance);
+        self.refs[i] = {
+          class: p.refs[i].class,
+          instance: p.refs[i].instance,
+          sheet: constructSheet(p.refs[i].class, p.refs[i].instance),
+          nameKey: p.refs[i].class.slice(0, -1),
+          idKey: p.refs[i].class.slice(0, -1) + 'id'
+        };
         if (self.view.init == 'fromUi' || self.view.init == 'fromAltInstance'){
           var names = p.refs[i].names.split(', '); 
         } else if (self.view.init = 'fromRange'){        
-          var names = self.cache.params.sheet.data[0]['ref' + i + 'names'];
+          var names = self.cache.params.sheet.data[0]['ref' + i + 'names'].split(', ');
         } 
         initRefIdsFromNames(names, i);        
-      } 
+      }      
     }
-    initGreedyRefAccessors();
+    initRefAccessors();
     //initRefAccessors();
-
-    if (self.errors.refs != undefined){
-      toast(getErrorStr(self.errors.refs));
-      Logger.log(getErrorStr(self.errors.refs));
-    } 
+    logRefErrors();
     Logger.log('Completed initRefs()!');
     // LOG REFS (for testing only)
     // for (var i = 0; i < self.refs.length; i++) {
-    //   Logger.log('self.refs['+i+']: ' + self.refs[i]);
+    //   for (var j in self.refs){
+    // Logger.log('self.refs['+i+']: ' + self.refs[i]);
+    //   }  
     // };
-
   };
 
   function initRefIdsFromNames(names, i){
@@ -1082,13 +1035,12 @@ function View(p){
     }
   };
 
-  function initRefIdsFromRel(){
-    /*this.refs[0].ids = this.rel.refs[1].ids;
-    this.refs[0].names = this.rel.refs[1].names;
-    this.refs[1].ids = this.rel.refs[0].ids;
-    this.refs[1].names = this.rel.refs[0].names;
-  */
-  };
+  function logRefErrors(){
+    if (self.errors.refs != undefined){
+      toast(getErrorStr(self.errors.refs));
+      Logger.log(getErrorStr(self.errors.refs));
+    }     
+  }
 
   //** ^^^ INITIALIZE REFS ^^^ **///
 
@@ -1179,27 +1131,19 @@ function View(p){
     if (self.errors.refs == undefined){//only proceed if there were no errors initializing refs
       Logger.log('starting initRecordList()!');
       self.recordList = [];
-      switch (self.view.init){
-        case 'fromUi':
-          initRecordListFromModel();
-          break;
-        case 'fromAltInstance':
-          initRecordListFromModel();
-          break;
-        case 'fromRange':
-          initRecordListFromSelf();
-          break;
-        case 'fromRel':
-          initRecordListFromRel();
-          break;
+      if (self.view.init == 'fromUi' || self.view.init == 'fromAltInstance' || self.view.init == 'fromRel'){
+        initRecordListFromModel();        
+      } else if (self.view.init == 'fromRange'){
+        initRecordListFromSelf();
       }
       if (self.recordList.length > 0){
         reconcileRefs();
+        initRecordAccessors();
         Logger.log('Completed initRecordList!');
       } else {
-        logRefErrors();
+        logRecordListErrors();
       }
-      // LOG RECORD LIST (for testing only)
+      // // LOG RECORD LIST (for testing only)
       // for (var i = 0; i < self.recordList.length; i++) {//log record list values
       //   for (var j in self.recordList[i]){
       //     Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
@@ -1320,7 +1264,7 @@ function View(p){
     return false;//if no filters return true, return false
   };
 
-  function logRefErrors(){
+  function logRecordListErrors(){
     self.errors['recordList'] = 'ERROR: there were no records retrieved for the specified reference ids.';
     toast(getErrorStr(self.errors.recordList));
     Logger.log(getErrorStr(self.errors.recordList));
@@ -1486,7 +1430,7 @@ function View(p){
     var cell = [];
     // Logger.log('recordIds: ' + recordIds);
     for (var i = 0; i < recordIds.length; i++){
-      var record = getRecordFromId(recordIds[i]);
+      var record = self.getRecordFromId(recordIds[i]);
       // for (var j in record){
       //   Logger.log('record['+j+']: ' + record[j]);
       // }
@@ -1496,7 +1440,6 @@ function View(p){
       // Logger.log('idKey: ' + self.refs[1].idKey);
       // //Logger.log('refName: ' + record[self.refs[1].idKey] == undefined ? '' : getNameFromId(self.refs[1].sheet, record[self.refs[1].idKey]));
       // Logger.log('status: ' + getCodeFromStatus(record.status));
-      //var record = getRecordFromId(recordIds[i]),
       var idKey = self.refs[1].idKey,
         refName = (record[idKey] == undefined || record[idKey] == '')? '' : getNameFromId(self.refs[1].sheet, record[idKey]),
         status = getCodeFromStatus(record.status);
@@ -1508,14 +1451,14 @@ function View(p){
     return cell;
   };
 
-
-
-
   //** ^^ INITIALIZE RANGE ^^ **//
+
 };
 
-///// ^^^ VIEW CONSTRUCTOR FUNCTION ^^^ //////
+//* ^^^ VIEW CONSTRUCTOR FUNCTION ^^^ *//
 
+
+//* vvv CALENDAR FUNCTIONS vvv *//
 
 ////// vvv UPDATE CALENDAR MAIN FUNCTION vvv //////
 function updateCalendars(shifts, riders, restaurants, shiftList){
@@ -1655,16 +1598,139 @@ function updateCalendars(shifts, riders, restaurants, shiftList){
     }
   };
 
+//* ^^^ CALENDAR FUNCTIONS ^^^ *//
 
-function initGetFreeRidersUi(){
+//*** vvv CALLING FUNCTIONS vvv ***//
+
+function createMenus() {//creates event triggers for calling functions
+    var menuEntries = [
+      {        
+        name: "Refresh View",
+          functionName: "initRefreshViewUi" 
+      },{
+          name: "Save Edits",
+          functionName: "saveEdits" 
+      }
+    ];
+    SpreadsheetApp.getActiveSpreadsheet().addMenu("Functions", menuEntries);
+};
+
+function initRefreshViewUi(){//initiate UI dialog
+
+  //get sheet and sheet index to determine view to pass to click handler
+  var ss = SpreadsheetApp.getActiveSpreadsheet().getName(),
+    ws = SpreadsheetApp.getActiveSheet().getName(),
+    sheet = constructSheet(ss, ws),
+  //retrieve view's current start and end dates from sheet data
+    curStart = new Date().getWeekStart(),
+    curEnd = curStart.incrementDate(6);
+    
+  //construct ui app
+  var app = UiApp.createApplication().setTitle('Update Schedule View').setWidth(200),
+    //construct panel to hold user input elements
+    panel = app.createVerticalPanel(),
+    //construct ui elements to retrive and store paramaters to pass to updateShiftsView()
+    class = app.createHidden('class', ss).setName('class').setId('class'),
+    instance = app.createHidden('instance', ws).setName('instance').setId('instance'),//store sheet name as 'view'
+    startLabel = app.createLabel('Start Date').setId('startLabel'),
+    start = app.createDateBox().setName('start').setId('start').setValue(curStart),
+    endLabel = app.createLabel('End Date').setId('endLabel'),
+    end = app.createDateBox().setName('end').setId('end').setValue(curEnd),
+    //define callback
+    submitHandler = app.createServerHandler('refreshView')
+      .setId('submitHandler')
+      .addCallbackElement(class)
+      .addCallbackElement(instance)
+      .addCallbackElement(start)
+      .addCallbackElement(end);
+  Logger.log('instance: ' + instance);
+  //for lookup view, retrieve restaurants and riders from user input 
+  if (ws == 'lookup'){
+    var restaurantsLabel = app.createLabel('Restaurants').setId('restaurantsLabel'),    
+      restaurants = app.createTextBox().setName('restaurants').setId('restaurants').setValue('all'),
+      ridersLabel = app.createLabel('Riders').setId('ridersLabel'), 
+      riders = app.createTextBox().setName('riders').setId('riders').setValue('all'); 
+
+  } else { //for all other views, store 'all' restaurants as hidden paramater 
+    var restaurants = app.createHidden('restaurants', 'all').setName('restaurants').setId('restaurants'),
+      riders = app.createHidden('riders', 'all').setName('riders').setId('riders');
+  }
+  submitHandler
+    .addCallbackElement(restaurants)
+    .addCallbackElement(riders);
+
+  //define button to trigger callback
+  var submit = app.createButton('Submit!')
+      .addClickHandler(submitHandler);
+  //add app elements to each other (funky order here?)
+  panel
+    .add(startLabel)
+    .add(start)
+    .add(endLabel)
+    .add(end);
+  if (ws == 'lookup'){
+    panel
+      .add(restaurantsLabel)  
+      .add(restaurants)  
+      .add(ridersLabel) 
+      .add(riders);
+  } 
+  panel.add(submit);
+  
+  app
+    .add(panel);
+
+  //  sheet.g.getParent().show(app);
+  SpreadsheetApp.getActiveSpreadsheet().show(app);
+};
+
+function refreshView(e){
+
+//initialize uiApp instance and parameters for shift View object
+var app = UiApp.getActiveApplication(),//open ui instance
+  p = e.parameter,//store ui params
+  params = {//initialize view params from ui params
+    view: {class: p.class, instance: p.instance, init: 'fromUi'},
+    model: {class: 'shifts', instance: 'index'},
+    refs: [{class: 'restaurants', instance: 'info', names: p.restaurants}, {class: 'riders', instance:'info', names: p.riders}],
+    dates:{start: p.start, end: p.end}
+  };
+  
+  schedule = new View(params);//initialize schedule view
+  schedule.writeToSelf();//write from schedule view to shifts model ss
+  return app.close();  //close ui
+};
+
+function saveEdits(){
+
+  var schedule = new View({
+      view: {class: 'schedule', instance: getWsName(), init: 'fromRange'},
+      model: {class: 'shifts', instance: 'index'},
+      refs: [{class: 'restaurants', instance: 'info'}, {class: 'riders', instance:'info'}],
+      vols: {grid: ['riderid', 'status', 'availabilityid'], list: ['riderid', 'status', 'billing', 'urgency', 'availabilityid']},
+    }),
+    availability = new View({
+      view: {class: 'availability', instance: 'weekly', init: 'fromRel'},
+      model: {class: 'availabilities', instance: 'index'},
+      refs: [{class: 'riders', instance: 'info'}, {class: 'restaurants', instance: 'info'}],//maybe not necess?
+      dates: {start: schedule.dates.start, end: schedule.dates.end},
+      rel: {view: schedule, join: 'shiftid', vols: ['status', 'restaurantid', 'start', 'end']}
+    });
+  
+  schedule.rel = {view: availability, join: 'availabilityid', vols: ['status', 'riderid']};
+  schedule.getConflictsWith(availability).showConflicts();
+
+  if (schedule.conflicts.length <= 0){
+    availability
+      .writeFromRel(schedule)
+      .refreshViews(['grid', 'weekly', 'lookup']);
+    schedule
+      .writeToSelf()
+      .refreshViews(['grid', 'weekly', 'update', 'lookup']);
+      // .sendEmails();
+      // .writeToCalendar();    
+  }
 
 };
 
-function getFreeRiders(){
-
-};
-
-function getShiftsFromNeeds(){
-
-};
-
+//*** ^^^ CALLING FUNCTIONS ^^^ ***//
