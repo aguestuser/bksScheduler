@@ -49,6 +49,10 @@ function constructSheet(ss, ws){
         availabilityCellMaps: {
           key: '0AkfgEUsp5QrAdHloc1pSM0YtQjBxdjV2Qktrdzd4bHc',
           worksheets: ['grid', 'weekly', 'lookup']
+        },
+        emailElements: {
+          key: '0AkfgEUsp5QrAdDBqR1VRNVJzZ3RPTU5jNGNPUkJYY1E',
+          worksheets: ['notes', 'reminders', 'users']
         }
       },
     sheet = new Sheet(sheets[ss].key, sheets[ss].worksheets.indexOf(ws));
@@ -261,16 +265,18 @@ Array.prototype.dedupe = function() {
       obj ={}, 
       out=[];
     for (i = 0; i < this.length; i++){
-      obj[this[i]] = typeof this[i];
+      obj[this[i]] = typeof(this[i]);
     }
     for (i in obj){
-      out.push(i);
+      if (obj[i] != 'undefined'){out.push(obj[i] == 'number' ? Number(i) : i);}
     }
-    for (i=0; i < out.length; i++){
-      this[i] = out[i];
-    }
-    this.splice(out.length, this.length - out.length);
-    return this;
+    // for (i=0; i < out.length; i++){
+    //   this[i] = out[i];
+    // }
+    // this.splice(out.length, this.length - out.length);
+    return out;
+    // this = out;
+    // return this;
 };
 
 //add uppercase first char method to String prototyp
@@ -301,9 +307,12 @@ Date.prototype.setToMidnight = function(){
 
 //add get week start function to Date prototype (will return date object for the Monday of the week any given date is in)
 Date.prototype.getWeekStart = function(){
-  var day = this.getDay(),
+  var initTime = this.getTime(); 
+    day = this.getDay(),
     diff = this.getDate() - day + (day == 0 ? -6:1); // adjust when day is sunday
-  return new Date(this.setDate(diff));
+    returnVal = new Date(this.setDate(diff)).setToMidnight();
+    this.setTime(initTime);
+    return returnVal;
 };
 
 Date.prototype.getWeekMap = function(){
@@ -319,6 +328,8 @@ Date.prototype.getWeekMap = function(){
   }
 };
 
+
+
 Date.prototype.getDayName = function(){
   var dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   return dayNames[this.getDay()];
@@ -326,9 +337,15 @@ Date.prototype.getDayName = function(){
 
 
 Date.prototype.getFormattedTime = function(){
+  var initHr = this.getHours(), 
+    dif = 0;
+  if (initHr > 12){
+    dif = -12
+  } else if (initHr == 0){
+    dif = 12;
+  }
   var period = this.getHours() >= 12 ? 'pm' : 'am',
-    subtract = this.getHours() >= 12 ? true : false,
-    hr = subtract ? this.getHours() - 12 : this.getHours(),
+    hr = initHr + dif,
     singDig = this.getMinutes().toString().length == 1 ? true : false,
     min = singDig ? '0' + this.getMinutes().toString() : this.getMinutes();
   return hr + ':' + min + period;
@@ -355,9 +372,7 @@ function getIdsFromNames(model, names){
   var ids = [];
   for (var i = 0; i < names.length; i++){
     var result = getIdFromName(model, names[i]);
-    if (result.error){
-      return result;
-    } else {
+    if (result !== undefined){
       ids.push(getIdFromName(model, names[i]));
     }
   }
@@ -375,16 +390,23 @@ function getIdFromName(model, name){
   Logger.log(error);
 };
 
-// function getRecordsFromModelByIds(model, ids){
-//   for (var i = 0; i < ids.length; i++){
-//     records.push(getRecordById(model, id));
-//   }
-//   return records;
-// };
+function getRecordsFromModelByIds(model, ids){
+  for (var i = 0; i < ids.length; i++){
+    records.push(getRecordById(model, id));
+  }
+  return records;
+};
 
-// function getRecordFromModelById(model, id){
-//   return model.data[id];
-// };
+function getRecordFromModelById(model, id){
+  // Logger.log('running getRecordFromModelById('+model.instance+', '+id+')');
+  for (var i = 0; i < model.data.length; i++) {
+    // Logger.log('model.data['+i+'].id: ' + model.data[i].id);
+    if (model.data[i].id === id){
+      // Logger.log('match found!');
+      return model.data[i];
+    }
+  }
+};
 
 function getActiveIdsFromModel(model){
   var ids = [];
@@ -487,7 +509,7 @@ function View(p){
   this.writeToSelf = function (){
     Logger.log('starting .writeToSelf()');
     var range = [];
-    if (this.range == undefined){
+    if (this.range === undefined){
       range[0] = ['Nothing found!'];
       toast('There were no records found matching those parameters!');
     } else {
@@ -495,7 +517,7 @@ function View(p){
     }
     this.view.sheet.clearRange();
     this.view.sheet.setRange(range);
-    if (this.view.type == 'grid') {this.writeToCellMap();}
+    if (this.view.type == 'grid' && this.gridMap !== undefined) {this.writeToCellMap();}
     return this;
   };
 
@@ -534,19 +556,19 @@ function View(p){
     Logger.log('Running '+ this.view.class +'.writeToModel()!')
     for (var i = 0; i < this.recordList.length; i++){//match record list rows to this.model.sheet rows by id
       var id = this.recordList[i].id;
-      if (id == undefined || id == 'new'){//if the view's id attr indicates a new record, create one 
+      if (id === undefined || id == 'new'){//if the view's id attr indicates a new record, create one 
         this.writeNewRecordToModel(this.recordList[i], i);
       } else {//otherwise, overwrite all cells in this.model.sheet whose values don't match those in the record list
         for (var j = 0; j< this.vols.length; j++){
           var vol = this.vols[j];
-          if (this.recordList[i][vol] != this.model.sheet.data[id][vol]){
+          if (this.recordList[i][vol] !== this.model.sheet.data[id][vol]){
             this.model.sheet.updateCell(this.model.sheet.getRowNum(id), this.model.sheet.getColNum(vol), this.recordList[i][vol]);
           }
         }        
       }
     }
     this.model.sheet = constructSheet(this.view.sheet.class, this.view.sheet.instance);//refresh view object's copy of model to reflect changes just written to it
-    toast('Updated '+ this.view.class +' model!');
+    toast('Updated '+ this.model.class +' model!');
     Logger.log('Finished running '+ this.view.class +'.writeToModel()!')
     return this;
   };
@@ -562,7 +584,7 @@ function View(p){
     this.range[i][0] = record.id;//append new id to range
     for (var j = 0; j < this.model.sheet.headers.length; j++){
       var val = record[this.model.sheet.headers[j]];
-      if (val == undefined){//substitute empty string for undefined values
+      if (val === undefined){//substitute empty string for undefined values
         range.push('');
       } else {
         range.push(val);        
@@ -592,8 +614,9 @@ function View(p){
      
       var altView = new View(p);//construct view object for other view instance
       altView.writeToSelf();//call .writeToSelf() to refresh the view instance
-      toast('Updated ' + this.view.class + ' ' + instances[i] + ' view!');
+      // toast('Updated ' + this.view.class + ' ' + instances[i] + ' view!');
     }
+    toast('Updated ' + this.view.class + ' views!');
     Logger.log('Finished running .refreshViews()!');
     return this;
   };
@@ -602,8 +625,8 @@ function View(p){
   this.getConflictsWith = function(View){
     Logger.log('running .getConflictsWith()');
     toast('Checking for conflicts...')
-    var viewRl = this.getRecordsSortedByRef(this.refs[1]),
-      relRl = View.getRecordsSortedByRef(View.refs[0]);
+    var viewRl = this.recordsSortedByRef[1];
+    var relRl = View.recordsSortedByRef[0];
     getConflicts(viewRl, relRl);
     Logger.log('finished running .getConflictsWith()');    
     return this;
@@ -623,8 +646,8 @@ function View(p){
               viewRl[refId][i].pm == relRl[refId][j].pm
             )
           ){//match on records with status either not free or assigned/delegated/confirmed to a different record
-            Logger.log('matched on day and period.')
-            Logger.log('self.rel.view.rel.join: ' + self.rel.view.rel.join);
+            // Logger.log('matched on day and period.')
+            // Logger.log('self.rel.view.rel.join: ' + self.rel.view.rel.join);
             if (
                 relRl[refId][j].status == 'not free' || (
                 relRl[refId][j].status != 'free' && 
@@ -641,18 +664,18 @@ function View(p){
       }
     }
 
-    //LOG CONFLICTS (for testing)
-    for (var i = 0; i < self.conflicts.length; i++) {
-      Logger.log('self.conflicts[i]: ' + self.conflicts[i]);
-      for (var j in self.conflicts[i])
-        Logger.log('self.conflicts['+i+']['+j+']: ' + self.conflicts[i][j]);
-    }
-    //LOG NOCONFLICTS (for testing)
-    for (var i = 0; i < self.noConflicts.length; i++) {
-      Logger.log('self.conflicts[i]: ' + self.conflicts[i]);
-      for (var j in self.noConflicts[i])
-        Logger.log('self.noConflicts['+i+']['+j+']: ' + self.noConflicts[i][j]);
-    }    
+    // //LOG CONFLICTS (for testing)
+    // for (var i = 0; i < self.conflicts.length; i++) {
+    //   Logger.log('self.conflicts[i]: ' + self.conflicts[i]);
+    //   for (var j in self.conflicts[i])
+    //     Logger.log('self.conflicts['+i+']['+j+']: ' + self.conflicts[i][j]);
+    // }
+    // //LOG NOCONFLICTS (for testing)
+    // for (var i = 0; i < self.noConflicts.length; i++) {
+    //   Logger.log('self.conflicts[i]: ' + self.conflicts[i]);
+    //   for (var j in self.noConflicts[i])
+    //     Logger.log('self.noConflicts['+i+']['+j+']: ' + self.noConflicts[i][j]);
+    // }    
     Logger.log('finished running getConflicts()');
   };
 
@@ -670,10 +693,10 @@ function View(p){
 
   function handleConflicts(){
     Logger.log('running handleConflicts()');
-    Logger.log('self.recordList.length: ' + self.recordList.length);
+    // Logger.log('self.recordList.length: ' + self.recordList.length);
     for (var i = 0; i < self.conflicts.length; i++) {
-      Logger.log('self.conflicts.length: ' +self.conflicts.length);
-      Logger.log('self.conflicts['+i+'].viewid: ' + self.conflicts[i].viewid);
+      // Logger.log('self.conflicts.length: ' +self.conflicts.length);
+      // Logger.log('self.conflicts['+i+'].viewid: ' + self.conflicts[i].viewid);
       self.getRecordFromId(self.conflicts[i].viewid).status = 'not free';//set status in record list     
       if (self.view.type == 'list'){//reflect status in list row
         var statusCell = self.view.sheet.g.getRange(getRowFromRecordId(self.conflicts[i].viewid), self.view.sheet.headers.indexOf('status') + 1),//get range coordinates for cell showing record's status attr
@@ -691,13 +714,13 @@ function View(p){
 
   function handleNoConflicts(){
     Logger.log('running handleNoConflicts()');
-    Logger.log('self.noConflicts.length: ' + self.noConflicts.length);
+    // Logger.log('self.noConflicts.length: ' + self.noConflicts.length);
     for (var i = 0; i < self.noConflicts.length; i++) {
       if (self.view.type == 'list'){//unhighlight noConflict rows that are still pink (because they used to contain a conflict)
-        Logger.log('self.noConflicts['+i+'].viewid: ' + self.noConflicts[i].viewid);
+        // Logger.log('self.noConflicts['+i+'].viewid: ' + self.noConflicts[i].viewid);
         var recordRow = self.view.sheet.g.getRange(getRowFromRecordId(self.noConflicts[i].viewid), self.view.sheet.col.first, 1, self.view.sheet.col.getLast());
-         Logger.log('recordRow.getValues(): ' + recordRow.getValues());
-         Logger.log ('recordRow.getBackground(): ' + recordRow.getBackground());
+         // Logger.log('recordRow.getValues(): ' + recordRow.getValues());
+         // Logger.log ('recordRow.getBackground(): ' + recordRow.getBackground());
          if(recordRow.getBackground()== '#FF00FF'){
           recordRow.setBackground('#FFFFFF');
         }
@@ -744,7 +767,7 @@ function View(p){
 
   this.hasErrors = function(){
     for (var i in this.errors){
-      if (this.errors[i] != undefined){
+      if (this.errors[i] !== undefined){
         return true;
       }
     }
@@ -767,7 +790,7 @@ function View(p){
       for (var i = 0; i < ref.ids.length; i++) {
         records[ref.ids[i]]=[];
         for (var j = 0; j < self.recordList.length; j++){
-          if (self.recordList[j][ref.idKey] == ref.ids[i]){
+          if (self.recordList[j][ref.idKey] == ref.ids[i] ){//&& self.recordList[j][ref.idKey] !== undefined
             records[ref.ids[i]].push(self.recordList[j]);
           }        
         }
@@ -806,17 +829,23 @@ function View(p){
   };
 
   function getRefIndexFromClass(class){
+    // Logger.log('running getRefIndexFromClass('+class+')');
     for (var i = 0; i < self.refs.length; i++) {
       if (self.refs[i].class == class){return i;}
     };
   };
 
   function getRefIdFromName(index, name){
-    return self.refs[index].ids[self.refs[index].names.indexOf(name)];
+    // Logger.log('running getRefIdFromName('+index+', '+name+')');
+    return self.refs[index].ids.length == 1 ? self.refs[index].ids[0] : self.refs[index].ids[self.refs[index].names.indexOf(name)];
   };
 
   function getRefNameFromId (index, id){
-    return self.refs[index].names[self.refs[index].ids.indexOf(id)];
+    // Logger.log('running get RefNameFromId('+index+', ' + id+')');
+    // Logger.log('self.refs['+index+'].ids.indexOf('+id+')' + self.refs[index].ids.indexOf(id));
+    // Logger.log('self.refs['+index+'].names['+self.refs[index].ids.indexOf(id)+']: ' + self.refs[index].names[self.refs[index].ids.indexOf(id)])
+
+     return self.refs[index].names.length == 1 ? self.refs[index].names[0] : self.refs[index].names[self.refs[index].ids.indexOf(id)];
   };
 
   function initRefAccessors(){
@@ -883,22 +912,24 @@ function View(p){
 
   function reconcileRef(ref){
     Logger.log('running reconcileRef('+ref.class+')')
-    if (self.recordList != undefined){
+    if (self.recordList !== undefined){
       var idKey = ref.idKey,
         oldNames = ref.names,
         newNames = [],
         ids = [];
       for (var i = 0; i < self.recordList.length; i++){
         if(
-          self.recordList[i][idKey] != undefined && 
-          self.recordList[i][idKey] != '' //&& 
+          self.recordList[i][idKey] !== undefined && 
+          self.recordList[i][idKey] !== '' //&& 
           // typeof(self.recordList[i][idKey])=='number'
         ){
           ids.push(self.recordList[i][idKey]);
         }
       }
+      // Logger.log('ids: ' + ids);
       ref.ids = ids.dedupe();
-      Logger.log('ref.ids: ' + ref.ids);
+      // Logger.log('ref.ids: ' + ref.ids);
+      // Logger.log('deduped ref ids');
       ref.names = getNamesFromIds(ref.sheet, ref.ids);  
     }
   };
@@ -1077,6 +1108,7 @@ function View(p){
     //   Logger.log(self.refs[i].nameKey + 'names: ' + self.refs[i].names);
     //   Logger.log(self.refs[i].idKey + 'ids: ' + self.refs[i].ids);
     // }
+
     
   };
 
@@ -1098,7 +1130,7 @@ function View(p){
   };
 
   function logRefErrors(){
-    if (self.errors.refs != undefined){
+    if (self.errors.refs !== undefined){
       toast(getErrorStr(self.errors.refs));
       Logger.log(getErrorStr(self.errors.refs));        
     }
@@ -1111,7 +1143,7 @@ function View(p){
   //** vvv INITIALIZE FILTERS vvv **//
 
   function initFilters(pfilters){
-    if (self.errors.refs == undefined){//only proceed if no errors initializing refs
+    if (self.errors.refs === undefined){//only proceed if no errors initializing refs
       var view = self.view.instance;
         filterArr = [],//empty array to store filtering functions
         filterParams = {//map of filter params corresponding to view instances
@@ -1190,7 +1222,7 @@ function View(p){
   //** vvv INITIALIZE RECORD LIST vvv **//
 
   function initRecordList(){
-    if (self.errors.refs == undefined){//only proceed if there were no errors initializing refs
+    if (self.errors.refs === undefined){//only proceed if there were no errors initializing refs
       Logger.log('starting initRecordList()!');
       self.recordList = [];
       if (self.view.init == 'fromUi' || self.view.init == 'fromAltInstance' || self.view.init == 'fromRel'){
@@ -1200,7 +1232,7 @@ function View(p){
       } else if (self.view.init == 'fromLastWeek'){
         initRecordListFromLastWeek();
       }
-      if (self.recordList.length > 0 && self.errors.recordList == undefined){
+      if (self.recordList.length > 0 && self.errors.recordList === undefined){
         reconcileRefs();
         initRecordAccessors();
         self.recordsSortedByRef = [
@@ -1208,16 +1240,20 @@ function View(p){
           self.getRecordsSortedByRef(self.refs[1])
         ];
         Logger.log('Completed initRecordList!');
-      } 
-      // else {
-      //   logRecordListErrors();
-      // }
-      // // LOG RECORD LIST (for testing only)
+      } else {
+        logNoRecordsError();
+      }
+      // //LOG RECORD LIST (for testing only)
       // for (var i = 0; i < self.recordList.length; i++) {//log record list values
       //   for (var j in self.recordList[i]){
       //     Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
       //   }
       // };
+      // //LOG REF NAMES AND IDS
+      // Logger.log('self.refs[0].names: ' + self.refs[0].names);
+      // Logger.log('self.refs[0].ids: ' + self.refs[0].ids);
+      // Logger.log('self.refs[1].names: ' + self.refs[1].names);
+      // Logger.log('self.refs[1].ids: ' + self.refs[1].ids);
     }
   };
 
@@ -1232,7 +1268,7 @@ function View(p){
   function initRecordListFromSelf(){
     if (self.view.type == 'list'){
       for (var i = 0; i < self.view.sheet.data.length; i++){
-        if (self.view.sheet.data[i].id == undefined){//if no id is given (signifying a new record), populate record list row data from view row data
+        if (self.view.sheet.data[i].id === undefined){//if no id is given (signifying a new record), populate record list row data from view row data
           var recordListRow = getRecordListRowFromViewRow(self.view.sheet.data[i]);
         } else {//otherwise, populate record list row from volatile data from view row and stable data from model
           var volatileData = getVDFromSheetRow(self.view.sheet.data[i]),
@@ -1265,11 +1301,14 @@ function View(p){
       } else if (attr == 'period'){//retrieve am & pm bool vals from period attr
         rlRow.am = getAmFromPeriod(row[attr]);
         rlRow.pm = getPmFromPeriod(row[attr]);
-      } else if (row[attr] == undefined){//avoid ref lookups for undefined refs
-        rlRow[attr] == undefined;
+      } else if (row[attr] === undefined){//avoid ref lookups for undefined refs
+        rlRow[attr] = '';
       } else if (isRef(attr)){//get ref ids for attributes that refer to refs
-        rlRow[attr + 'id'] = getRefIdFromName(getRefIndexFromClass(attr), row[attr]);
-        if (rlRow[attr+ 'id'] == undefined){//handle ref lookup errors
+        var idKey = attr + 'id', 
+          class = attr + 's';
+        rlRow[idKey] = getRefIdFromName(getRefIndexFromClass(class), row[attr]);
+        if (rlRow[idKey] === undefined){//handle ref lookup errors
+          rlRow[idKey] = '';
           logRlRefLookupError(attr, row[attr]);
         } 
       } else {//otherwise populate rl attributes with attributes from view row
@@ -1285,16 +1324,16 @@ function View(p){
     for (var i = 0; i < self.vols.length; i++){
       var vol = self.vols[i];
       if (isRef(vol)){//if attr is a ref, lookup ref id from name
-        Logger.log('it\'s a ref!');
         var nameKey = vol.slice(0,-2),
           class = nameKey + 's';
-        if (row[nameKey] == undefined){//avoid ref lookups for empty cells
-          vd[vol] == undefined;
-        } else{
-          Logger.log('doing ref lookup for ' + row[nameKey]);
+        if (row[nameKey] === undefined){//avoid ref lookups for empty cells
+          vd[vol] = '';
+        } else {
+          // Logger.log('doing ref lookup for ' + row[nameKey]);
           vd[vol] = getRefIdFromName(getRefIndexFromClass(class), row[nameKey]); 
-          Logger.log('vd[vol]: ' + vd[vol]);
-          if (vd[vol] == undefined){//handle errors generated by trying to lookup non-existent names
+          // Logger.log('vd['+vol+']: ' + vd[vol]);
+          if (vd[vol] === undefined){//handle errors generated by trying to lookup non-existent names
+            vd[vol] = '';
             logRlRefLookupError(nameKey, row[nameKey]);
           }          
         } 
@@ -1304,19 +1343,6 @@ function View(p){
     }
     return vd;
   };
-
-  function logRlRefLookupError(nameKey, name){
-    Logger.log('running logRecordListError()');
-    if (self.errors.recordList == undefined){
-      self.errors.recordList = [];
-    }
-    var error = 'ERROR: There was no ' + nameKey + ' found with name ' + name + '. (' + name + ' is either not in the database or their status is inactive.)';
-    ;
-    self.errors.recordList.push(error);//quotes and brackets in case error obj or error.recordList array not yet defined
-    Logger.log(error);
-    Logger.log('self.errors.recordList: ' + self.errors.recordList);
-    toast(error);
-  }
 
   function getVDFromSheetGridCell(m){
     var cell = self.view.sheet.data[m.row - self.view.sheet.row.first][self.view.sheet.headers[m.col - self.view.sheet.col.first]].split(', '),
@@ -1337,11 +1363,12 @@ function View(p){
           id: m.recordid,
           status: getStatusFromCode(code)
         };
-      if (refName == ''){//avoid ref lookups for empty cells
-        var refId = undefined;
+      if (refName === ''){//avoid ref lookups for empty cells
+        var refId = '';
       } else {//lookup ref ids from ref names
         var refId = getRefIdFromName(1, refName);
-        if (refId == undefined) {//log any lookup errors
+        if (refId === undefined) {//log any lookup errors
+          refId = '';
           logRlRefLookupError(self.refs[1].nameKey, refName);
         }
       } 
@@ -1369,18 +1396,12 @@ function View(p){
 
   function parseFormattedTime(date, ft){
     Logger.log('running parseFormattedTime()');
-    var date = new Date(date.toDateString());
-      Logger.log('date:' + date);
-    var period = ft.slice(-2, ft.length);
-    Logger.log('period: ' + period);
-    Logger.log('ft: ' + ft);
-     var hr = period == 'am' ? parseAmHours(Number(ft.slice(0, ft.indexOf(':')))) : parsePmHours(Number(ft.slice(0, ft.indexOf(':'))));
-    Logger.log('hr: ' + hr);    
-      Logger.log('minStr: ' + ft.slice(ft.indexOf(':') + 1, -2));
-      var min = Number(ft.slice(ft.indexOf(':') +1, -2));
-    Logger.log('min: ' + min);
+    var date = new Date(date.toDateString()),
+      period = ft.slice(-2, ft.length),
+      hr = period == 'am' ? parseAmHours(Number(ft.slice(0, ft.indexOf(':')))) : parsePmHours(Number(ft.slice(0, ft.indexOf(':')))), 
+      min = Number(ft.slice(ft.indexOf(':') +1, -2));
 
-    if (hr == undefined || min == undefined){
+    if (hr === undefined || min === undefined){
       var error = {error: true, message: 'ERROR: you provided an incorrectly formatted time in row ' + m.row + ', column ' + m.col};
       toast(error.message);
       Logger.log(error.message);
@@ -1432,7 +1453,7 @@ function View(p){
       row = {};
 
     for (var attr in vd){//retrieve all volatile values from vd{}
-      row[attr] = vd[attr] == undefined ? '' : vd[attr];//translate undefined cell values to an empty string
+      row[attr] = vd[attr];
     }
     for (var attr in self.model.sheet.data[id]){//retrieve all stable values (ie values not attributes of vd{}), from model
       if (!(attr in vd)){
@@ -1473,13 +1494,25 @@ function View(p){
     }
   };
 
-  function logRecordListErrors(){
-    self.errors['recordList'] = 'ERROR: there were no records retrieved for the specified reference ids.';
-    toast(self.errors.recordList);
-    Logger.log(self.errors.recordList);
+  function logRlRefLookupError(nameKey, name){
+    Logger.log('running logRecordListError()');
+    if (self.errors.recordList === undefined){
+      self.errors.recordList = [];
+    }
+    var error = 'ERROR: There was no ' + nameKey + ' found with name ' + name + '. (' + name + ' is either not in the database or their status is inactive.)';
+    self.errors.recordList.push(error);//quotes and brackets in case error obj or error.recordList array not yet defined
+    Logger.log(error);
+    Logger.log('self.errors.recordList: ' + self.errors.recordList);
+    toast(error);
   };
 
-
+  function logNoRecordsError(){
+    var message = 'ERROR: there were no records in the ' + self.view.class + ' model matching '
+    self.view.init == 'fromRel' ? message.concat('the records in this ' + self.view.class + 'view.') : message.concat('the paramaters you inputed');
+    self.errors.recordList = message;
+    Logger.log(message);
+    toast(message);
+  };
 
 
   //** ^^^ INITIALIZE RECORD LIST ^^^ **//
@@ -1487,7 +1520,7 @@ function View(p){
   //** vvv INITIALIZE GRID MAP vvv **//
 
   function initGridMap(){
-    if(self.errors.recordList == undefined){
+    if(self.errors.recordList === undefined){
       Logger.log('Running initGridMap()!');
       var names = self.refs[0].names.sort();
       self.gridMap = [];
@@ -1579,15 +1612,19 @@ function View(p){
   //** vvv INITIALIZE RANGE vvv **//
   function initRange(){
     Logger.log('Running initRange()!')
-    if (self.errors.recordList == undefined){//only proceed if there were no errors retrieving record list
+    if (self.errors.recordList === undefined){//only proceed if there were no errors retrieving record list
       self.range = [];
       if (self.view.type == 'list'){
-        return initListRange();
+        initListRange();
       } else {
-        return initGridRange();
+        initGridRange();
       }      
     }
     Logger.log('Finished running initRange()!');
+    // //LOG RANGE (for testing)
+    // for (var i = 0; i < self.range.length; i++) {
+    //   Logger.log('self.range['+i+']: ' + self.range[i]);
+    // }
   };
 
   function initListRange(){
@@ -1606,7 +1643,7 @@ function View(p){
     } else if (isRef(header)){//if the header refers to a ref name, return the name corresponding to the ref id     
       var idKey = header + 'id',
         class = header + 's';
-      return (record[idKey] == undefined || record[idKey] == '') ? '' : getNameFromId(self.refs[getRefIndexFromClass(class)].sheet, record[idKey]);
+      return (record[idKey] === undefined || record[idKey] === '') ? '' : getRefNameFromId(getRefIndexFromClass(class), record[idKey]);
     } else {//otherwise format the value according to the following patterns
       var headers = {
         day: record.start.getDayName(),
@@ -1650,7 +1687,7 @@ function View(p){
       // Logger.log('recordIds['+i+']: ' + recordIds[i]);
       // Logger.log('record: ' + record);
       // Logger.log('idKey: ' + self.refs[1].idKey);
-      // //Logger.log('refName: ' + record[self.refs[1].idKey] == undefined ? '' : getNameFromId(self.refs[1].sheet, record[self.refs[1].idKey]));
+      // //Logger.log('refName: ' + record[self.refs[1].idKey] === undefined ? '' : getNameFromId(self.refs[1].sheet, record[self.refs[1].idKey]));
       // Logger.log('status: ' + getCodeFromStatus(record.status));
       var idKey = self.refs[1].idKey,
         grStr = getGridRecordString(rec, idKey);
@@ -1665,7 +1702,7 @@ function View(p){
   function getGridRecordString(rec, idKey){
     if (self.gridType = 'refs'){
     // if (false){//for testing
-      var refName = (rec[idKey] == undefined || rec[idKey] == '')? '' : getNameFromId(self.refs[1].sheet, rec[idKey]),
+      var refName = (rec[idKey] === undefined || rec[idKey] === '')? '' : getNameFromId(self.refs[1].sheet, rec[idKey]),
         status = getCodeFromStatus(rec.status);
       return refName + ' ' + status;
     } else if (self.gridType == 'times'){
@@ -1678,188 +1715,265 @@ function View(p){
 
   //* vvv SEND EMAILS vvv *//
 
-this.sendEmails = function (){
+  this.sendEmails = function (){
 
-  setUrgencies();
-  initEmailRecords();
-  initEmailParams();
-  MailApp.sendEmail(this.ep);
-  
-  setStatuses();
-  this.writeToModel.refreshViews(['grid', 'weekly', 'update', 'lookup']);
-  this.rel.writeToModel.refreshViews(['grid', 'weekly', 'lookup']);
-  toast('emails sent!');
+    Logger.log('running this.sendEmails()!');
+    toast('Sending emails...');
 
-  function setUrgencies(){
-    var now = new Date();
-    for (var i = 0; i < self.recordList.length; i++) {
-      if (now.getWeekMap().mon != self.recordList[i].start.getWeekMap().mon){
-        self.recordList[i].urgency = 'weekly';
-      } else {
-        var dif = self.recordList[i].start - now;
-        if (dif >= 36*3600000){
-          self.recordList[i].urgency = 'extra';
-        } else {
-          self.recordList[i].urgency = 'emergency';
-        }        
-      }
-    }
-  };
+    var ee = {}, er = {}, ep = {}, user = Session.getActiveUser().getEmail(), emailCount = 0;
 
-  function initEmailRecords(){
-    self.er = {};
-    for (var refId in self.recordsSortedByRef[0]){
-      self.er[refId] = [];
-      for (var i = 0; i < self.recordsSortedByRef[0][refId].length; i++){
-        if (self.recordsSortedByRef[0][refId][i].status == 'assigned'){
-          self.er[refId].push(self.recordsSortedByRef[0][refId][i]);
+    initEmailRecords();
+    initEmailElements();
+    
+    for (var refId in er){
+      refId = Number(refId);
+      setUrgencies(refId);
+      initEmailParams(refId);
+      sendEmail(refId);
+      setStatuses(refId);
+    };
+
+    toast(emailCount + ' emails sent!');
+    return this;
+
+    function initEmailRecords(){
+      Logger.log('running initEmailRecords()');
+      Logger.log('typeof refId: ' + typeof refId);
+      for (var refId in self.recordsSortedByRef[1]){
+        for (var i = 0; i < self.recordsSortedByRef[1][refId].length; i++){
+          if (self.recordsSortedByRef[1][refId][i].status == 'assigned'){
+            Logger.log('self.recordsSortedByRef[1]['+refId+']['+i+'].start: ' + self.recordsSortedByRef[1][refId][i].start);
+            if (er[refId] === undefined){er[refId] = [];}
+            er[refId].push(self.recordsSortedByRef[1][refId][i]);
+          }
         }
       }
-    }
-  };
-
-  function initEmailParams(){
-    self.ep = {};
-    for (refId in self.er){
-      var emailType = getEmailType(self.er[refId]);
-      self.ep[refId] = {
-        to: self.refs[1].sheet.data[refId].email,
-        subject: getSubject(self.er[refId], emailType),
-        htmlBody: getBody(self.er[refId], emailType)
-      };
-      MailApp.sendEmail(self.ep[refId]);
-    }
-  };
-
-  function getEmailType(recs){//loop through records and return 'extra' if any shifts are 'extra', otherwise return 'emergency'
-    if (recs[0] == 'weekly'){
-      return 'weekly';
-    } else {
-      for (var i = 0; i < recs.length; i++){
-        if (recs[i].urgency == 'extra'){return 'extra';}
-      } 
-      return 'emergency';      
-    }
-  };
-
-  function getSubject(recs, emailType){
-    var dates = getDates(recs);
-    if (emailType == 'weekly'){
-      return '[BK SHIFT SCHEDULE] ' + formatDate(self.weekMap.mon) + ' - ' + formatDate(self.weekMap.sun);
-    } else if (emailType == 'extra'){
-      return recs.length > 1 ? '[EXTRA SHIFTS]: ' + dates.join(', ') : '[EXTRA SHIFT]: ' + dates + ' at ' + recs[0][self.refs[0].idKey];
-    } else {
-      return recs.length > 1 ? '[EMERGENCY SHIFTS]: ' + dates.join(', ') : '[EMERGENCY SHIFT]: ' + dates +' at ' + recs[0][self.refs[0].idKey];
-    }
-  };
-
-  function getDates(recs){
-    var dates = [];
-    for (var i = 0; i < recs.length; i++) {
-      dates.push(formatDate(recs[i].start));
-    };
-    dates.dedupe();
-  };
-
-  function formatDate(date){
-    return (date.getMonth() +1).toString() + '/' + date.getDate().toString();
-  };
-
-  function getBody(refId, recs, emailType){
-    var greeting = getGreeting(refId),
-      offering = getOffering(recs, emailType),
-      sked = getSked(recs),
-      notes = getNotes(emailType),
-      signature = getSignature(),
-      briefs = getBriefs(recs),
-      reminders = getReminders();
-    return greeting + offering + sked + signature + reminders;
-  };
-
-  function getGreeting(){
-    return '<p>Hi ' + self.refs[1].names[refId].slice(0,-2) + '! ';
-  };
-
-  function getOffering(emailType){
-    if (emailType == 'weekly'){
-      body.concat('We&rsquo;d like to offer you the following schedule this week:</p>');
-    } else if (recs.length > 1) {
-      body.concat('We&rsquo;d like to offer you the following ' + emailType + 'shifts:');
-    } else {
-      body.concat('We&rsquo;d like to offer you the following ' + emailType + 'shifts:');
-    }
-  };
-
-  function getSked(recs){
-    var header = '<p><table><th bgcolor ="grey"><td>Day</td><td>Time</td><td>Restaurant</td></th>';
-      footer = '</table></p>',
-      rows = [];
-    for (var i = 0; i < recs.length; i++) {
-      rows[i] = '<tr><td>' + recs[i].start.getDayName() + ' ' + formatDate(recs[i].start) + '</td><td>' + recs[i].start.getFormattedTime + ' - ' + recs[i].end.getFormattedTime +'</td><td>'+recs[i][self.refs[0].idKey]+'</td></tr>';
-    };
-    return header + rows.join() + footer;
-  };
-
-  function getNotes(recs, emailType){
-    var now = new Date();
-    if (emailType == 'weekly'){
-      return '<p><li><strong>Check-in Policy: Text 347-460-6484 2 hours prior to your scheduled shift.</strong> For shifts earlier than 9 am, text the night before. Feedback welcome on improvements to this system. You guys have been doing great with it so far.</li><li><strong>PLEASE</strong> do not confirm any shifts you are unable to work. If for some reason you cannot make a shift you have confirmed, <strong>contact us with as much notice as possible.</strong> </li><li>If you have not been scheduled a shift during a time you said you would be available, expect to be contacted about extra shifts or emergency shifts in the coming days. </li><li>We&rsquo;ve gotten some really useful feedback from folks! If you haven&rsquo;t already, please fill out the feedback form to review your last full week&rsquo;s schedule! <a href="http://bit.ly/bksriderfeedback">Feedback Form</a></li><li>Thoroughly read the restaurant descriptions below, and <strong>confirm the above schedule by 6pm tomorrow ('+ now.incrementDate(1).getDayName() +')</strong>. Thank you!</li></p>';   
-    } else if (recs.length > 1) {
-      return '<p>Please confirm if you can work them by 2pm tomorrow ('+now.incrementDate(1).getDayName()+'). Thanks!</p>'
-    }
-  };
-
-  function getSignature(){
-    var salutation = '<p>Best,</p><p>',
-      company = 'BK Shift, LLC<br/>',
-      footer = '</p>'
-      user = Session.getActiveUser().getEmail(),
-      users = {
-      'tess@bkshift.com': {
-        name: 'Tess Cohen<br/>',
-        title: 'Accounts Manager<br/>',
-        email: 'tess@bkshift.com<br/>',
-        phone: '347-460-6484<br/>'
-      },
-      'austin@bkshift.com': {
-        name: 'Austin Guest<br/>',
-        title: 'Accounts Executive<br/>',
-        email: 'austin@bkshift.com<br/>',
-        phone: '347-460-6484<br/>'
+      Logger.log('Finished running initEmailRecords()');
+      //LOG RECS (for testing)
+      for (var refId in er){
+        for (var i = 0; i < er[refId].length; i++) {
+          for (var j in er[refId][i]){
+            Logger.log('er['+refId+']['+i+']['+j+']: ' + er[refId][i][j]);
+          }
+        }
       }
-    }
-    return salutation + users[user].name + users[user].title + company + users[user].email + users[user].phone + footer;
-  };
-
-  function getBriefs(recs){
-    var header = '<hr/><p><strong><span style="text-decoration: underline;">Restaurant Briefs:</span></strong><p>',
-      refIds = getRefIds(recs, 0);
-      briefs = [];
-    for (var i = 0; i < refIds.length; i++) {
-      var mRec = self.model.sheet.data[refIds[i]],
-        brief = '<p><strong>' + mRec.name + '[' + mRec.borough + ']:</strong> ' + mRec.brief + '<br/>' + '<strong>Location: ' + mRec.address + '</strong></p>'
-      briefs.push(brief);
+      // //LOG REF NAMES & IDS (for testing)
+      // Logger.log('self.refs[1].ids: ' + self.refs[1].ids);
+      // Logger.log('self.refs[1].names: ' + self.refs[1].names);
+      // Logger.log('self.refs[0].ids: ' + self.refs[0].ids);
+      // Logger.log('self.refs[0].names: ' + self.refs[0].names);
     };
-    briefs.dedupe();
-    return header + briefs.join() + footer
+
+    function initEmailElements(){
+      Logger.log('running initEmailElements()');
+      ee.notes = constructSheet('emailElements', 'notes');
+      ee.reminders = constructSheet('emailElements', 'reminders');
+      ee.users = constructSheet('emailElements', 'users');
+      ee.user = getRecordFromModelById(ee.users, user);
+      Logger.log('finished running initEmailElements()');
+      //LOG EE.USERS
+      for (var i = 0; i < ee.users.data.length; i++) {
+        for (var j in ee.users.data[i]){
+          Logger.log('ee.users.data['+i+']['+j+']: ' + ee.users.data[i][j]);
+        }
+      }
+      //LOG EE.USER
+      for (var i in ee.user){
+        Logger.log('ee.user['+i+']: ' + ee.user[i]);
+      }
+
+    };
+
+    function setUrgencies(refId){
+      Logger.log('runnning setUrgencies()');
+      var now = new Date();
+      for (var i = 0; i < er[refId].length; i++) {
+         if (now.getWeekMap().mon.getTime() != er[refId][i].start.getWeekMap().mon.getTime()){
+          er[refId][i].urgency = 'weekly';
+        } else {
+          var dif = er[refId][i].start - now;
+          if (dif >= 129600000){//129600000 is 36 hours in milliseconds
+            er[refId][i].urgency = 'extra';
+          } else {
+            er[refId][i].urgency = 'emergency';
+          }        
+        }       
+      }
+    };
+
+    function initEmailParams(refId){
+      Logger.log('running initEmailParams()');  
+      var emailType = getEmailType(er[refId]);
+      ep[refId] = {
+        to: self.refs[1].sheet.data[refId].email,
+        // bcc: 'brooklynshift@gmail.com',
+        name: ee.user.name,
+        subject: getSubject(er[refId], emailType, refId),
+        htmlBody: getBody(refId, er[refId], emailType)
+      };
+      
+      function getEmailType(recs){//loop through records and return 'extra' if any shifts are 'extra', otherwise return 'emergency'
+        if (recs[0].urgency == 'weekly'){
+          return 'weekly';
+        } else {
+          for (var i = 0; i < recs.length; i++){
+            if (recs[i].urgency == 'extra'){return 'extra';}
+          } 
+          return 'emergency';      
+        }
+      };
+
+      function getSubject(recs, emailType, refId){
+        Logger.log('Running getSubject('+recs+', '+emailType+') for rider id: ' + refId);
+        var dateStr = getDateStr(recs),
+          ref0NameStr = getRef0NameStr(recs);
+        if (emailType == 'weekly'){
+          return '[BK SHIFT SCHEDULE] ' + formatDate(self.dates.weekMap.mon) + ' - ' + formatDate(self.dates.weekMap.sun);
+        } else if (emailType == 'extra'){
+          return recs.length > 1 ? '[EXTRA SHIFTS]: ' + dateStr : '[EXTRA SHIFT]: ' + dateStr + ' at ' + ref0NameStr;
+        } else {
+          return recs.length > 1 ? '[EMERGENCY SHIFTS]: ' + dateStr : '[EMERGENCY SHIFT]: ' + dateStr +' at ' + ref0NameStr;
+        }
+      };
+
+      function getDateStr(recs){
+        var dates = [];
+        for (var i = 0; i < recs.length; i++) {
+          dates.push(formatDate(recs[i].start));
+        };
+        return dates.dedupe().join(', ');
+      };
+
+      function getRef0NameStr(recs){
+        var ref0Names = [];
+        for (var i = 0; i < recs.length; i++) {
+          ref0Names.push(getRefNameFromId(0, recs[i][self.refs[0].idKey]));
+        };
+        return ref0Names.dedupe().join(', ');
+      }
+
+      function formatDate(date){
+        return (date.getMonth() +1).toString() + '/' + date.getDate().toString();
+      };
+
+      function getBody(refId, recs, emailType){
+        var greeting = getGreeting(refId),
+          offering = getOffering(recs, emailType),
+          sked = getSked(recs),
+          notes = getNotes(recs, emailType),
+          signature = getSignature(),
+          briefs = getBriefs(recs),
+          reminders = getReminders();
+        return greeting + offering + sked + notes + signature + briefs + reminders;
+      };
+
+      function getGreeting(refId){
+        return '<p>Hi ' + getRefNameFromId(1, refId).slice(0,-2) + '! ';//slicing removes space and last initial from shortname
+      };
+
+      function getOffering(recs, emailType){
+        if (emailType == 'weekly'){
+          return 'We&rsquo;d like to offer you the following schedule this week:</p>';
+        } else if (recs.length > 1) {
+          return 'We&rsquo;d like to offer you the following ' + emailType + ' shifts:</p>';
+        } else {
+          return 'We&rsquo;d like to offer you the following ' + emailType + ' shifts:</p>';
+        }
+      };
+
+      function getSked(recs){
+        Logger.log('running getSked()');
+        var header = '<p><table style="border-collapse: collapse;"><tr><th style = "border: 1px solid black; padding: .5em; margin:0; background-color: #d8d8d8">Day</th><th style = "border: 1px solid black; padding: .5em; margin:0; background-color: #d8d8d8">Time</th><th style = "border: 1px solid black; padding: .5em; margin:0; background-color: #d8d8d8">Restaurant</th></th></tr>',
+          footer = '</table></p>',
+          rows = [];
+
+        for (var i = 0; i < recs.length; i++) {
+          // Logger.log('recs['+i+'].start: ' + recs[i].start);
+          // Logger.log('recs['+i+'].start.getDayName(): ' + recs[i].start.getDayName());
+          // Logger.log('formatDate(recs['+i+'].start: ' + formatDate(recs[i].start));
+          rows[i] = '<tr><td style = "border: 1px solid black; padding: .5em; margin:0">' + recs[i].start.getDayName() + ' ' + formatDate(recs[i].start) + '</td><td style = "border: 1px solid black; padding: .5em; margin:0">' + recs[i].start.getFormattedTime() + ' - ' + recs[i].end.getFormattedTime() +'</td><td style = "border: 1px solid black; padding: .5em; margin:0">'+ getRefNameFromId(0, recs[i][self.refs[0].idKey])+'</td>';
+        };
+        return header + rows.join('</tr>') + footer;
+      };
+
+      function getNotes(recs, emailType){
+        var now = new Date();
+        if (emailType == 'weekly'){
+          var header = '<p><strong>Please read the restaurant descriptions below and confirm your schedule by 6pm this Saturday.</strong></p><strong><span style="text-decoration: underline;">Notes:</span></strong></p><ul><li>',
+            footer = '</li></ul>'
+            n = [];
+            for (var i = 0; i < ee.notes.data.length; i++){
+              n.push(ee.notes.data[i].notes);
+            };
+          return header + n.join('</li><li>') + footer;
+
+          // return '<p><li><strong>Check-in Policy: Text 347-460-6484 2 hours prior to your scheduled shift.</strong> For shifts earlier than 9 am, text the night before. Feedback welcome on improvements to this system. You guys have been doing great with it so far.</li><li><strong>PLEASE</strong> do not confirm any shifts you are unable to work. If for some reason you cannot make a shift you have confirmed, <strong>contact us with as much notice as possible.</strong> </li><li>If you have not been scheduled a shift during a time you said you would be available, expect to be contacted about extra shifts or emergency shifts in the coming days. </li><li>We&rsquo;ve gotten some really useful feedback from folks! If you haven&rsquo;t already, please fill out the feedback form to review your last full week&rsquo;s schedule! <a href="http://bit.ly/bksriderfeedback">Feedback Form</a></li><li>Thoroughly read the restaurant descriptions below, and <strong>confirm the above schedule by 6pm tomorrow ('+ now.incrementDate(1).getDayName() +')</strong>. Thank you!</li></p>';   
+        } else if (recs.length > 1) {
+          return '<p>Please confirm if you can work them by 2pm tomorrow ('+now.incrementDate(1).getDayName()+'). Thanks!</p>';
+        } else {
+          return '<p>Please confirm if you can work it by 2pm tomorrow ('+now.incrementDate(1).getDayName()+'). Thanks!</p>';
+        }
+      };
+
+      function getSignature(){
+        var salutation = '<p>Best,</p><p>',
+          company = 'BK Shift, LLC<br/>',
+          footer = '</p>';
+
+        return salutation + ee.user.name + '<br/>' + ee.user.title +'<br/>'+ company + ee.user.email +'<br/>'+ ee.user.phone +'<br/>'+ footer;
+      };
+
+      function getBriefs(recs){
+        var header = '<hr/><p><strong><span style="text-decoration: underline;">Restaurant Briefs:</span></strong><p>',
+          refIds = getRefIdsFromEmailRecords(recs, 0);
+          briefs = [];
+        for (var i = 0; i < refIds.length; i++) {
+          Logger.log('refIds['+i+']: ' + refIds[i]);
+          var refRec = self.refs[0].sheet.data[refIds[i]],
+            brief = '<p><strong>' + refRec.name + '[' + refRec.borough + ']:</strong> ' + refRec.brief + '<br/>' + '<strong>Location: ' + refRec.address + '</strong></p>'
+          briefs.push(brief);
+        };
+        briefs.dedupe();
+        return header + briefs.join('');
+      };
+
+      function getRefIdsFromEmailRecords(recs, refIndex){
+        var refIds = [];
+        for (var i = 0; i < recs.length; i++) {
+          refIds.push(recs[i][self.refs[refIndex].idKey]);
+        }
+        return refIds.dedupe();    
+      };
+
+      function getReminders(){
+        var header = '<hr/><p><strong><span style="text-decoration: underline;">Reminders:</span></strong><ol><li>',
+          footer = '</li></ol></p>',
+          r = [];
+        for (var i = 0; i < ee.reminders.data.length; i++) {
+          r.push(ee.reminders.data[i].reminders);
+        };
+
+        // reminders = '<ol><li>Don’t forget to text 347-460-6484 2 hrs before your shift</li><li>Please arrive 15 minutes before your scheduled shift</li><li>Please note that the DOT requires the use of helmets, front white light, back red light and a bell and/or whistle.</li><li>Remember: $500 cash prize for whoever covers the most emergency shifts until March 9!</li></ol>',
+
+        return header + r.join('</li><li>') + footer;
+      };
+    };
+
+    function sendEmail(refId){
+      MailApp.sendEmail(ep[refId]);
+      emailCount++
+    };    
+
+    function setStatuses(refId){
+      for (var i = 0; i < er[refId].length; i++) {
+        self.getRecordFromId(er[refId][i].id).status = 'delegated';
+      }
+    };
+
   };
 
-  function getRefIds(recs, refIndex){
-    var refIds = [];
-    for (var i = 0; i < recs.length; i++) {
-      refIds.push(recs[i][self.refs[refIndex].idKey]);
-    }
-    return refIds.dedupe();    
-  };
+  
 
-  function getReminders(){
-    var header = '<hr/><p><strong><span style="text-decoration: underline;">Reminders:</span></strong>',
-      reminders = '<ol><li>Don’t forget to text 347-460-6484 2 hrs before your shift</li><li>Please arrive 15 minutes before your scheduled shift</li><li>Please note that the DOT requires the use of helmets, front white light, back red light and a bell and/or whistle.</li><li>Remember: $500 cash prize for whoever covers the most emergency shifts until March 9!</li></ol>',
-      footer = '</p>';
-    return header + reminders + footer;
-  };
-
-};
 
 //* ^^^ SEND EMAILS ^^^ *//
 
@@ -2176,8 +2290,6 @@ function saveEdits(){
   // //**for testing NEEDS only
   // schedule.writeToModel().refreshViews(['grid', 'weekly', 'update', 'lookup']);
   
-  Logger.log('schedule.errors: ' + schedule.errors);
-
   if (!schedule.hasErrors()){
     
     var availability = new View({
@@ -2187,23 +2299,23 @@ function saveEdits(){
       dates: {start: schedule.dates.start, end: schedule.dates.end},
       rel: {view: schedule, join: 'shiftid', vols: ['status', 'restaurantid', 'start', 'end']}
     });
-    schedule.rel = {view: availability, join: 'availabilityid', vols: ['status', 'riderid']};
-    
-    schedule.getConflictsWith(availability).showConflicts();
-    
-    if (!schedule.hasConflicts()){
-      schedule
-        .writeToModel()
-        .refreshViews(['grid', 'weekly', 'update', 'lookup']);  
-      availability
-        .writeFromRel(schedule)
-        .refreshViews(['grid', 'weekly', 'lookup']); 
-      // schedule.writeToCalendar();
-    }
+
+    if(!availability.hasErrors()){
+      
+      schedule.rel = {view: availability, join: 'availabilityid', vols: ['status', 'riderid']};
+      schedule.getConflictsWith(availability).showConflicts();
+      
+      if (!schedule.hasConflicts()){
+        schedule
+          .writeToModel()
+          .refreshViews(['grid', 'weekly', 'update', 'lookup']);  
+        // availability
+        //   .writeFromRel(schedule)
+        //   .refreshViews(['grid', 'weekly', 'lookup']); 
+        // schedule.writeToCalendar();
+      }
+    }      
   }
-  
-
-
 };
 
 function sendEmails(){
@@ -2214,7 +2326,33 @@ function sendEmails(){
       vols: {grid: ['riderid', 'status', 'availabilityid'], list: ['riderid', 'status', 'billing', 'urgency', 'availabilityid']},
       // vols: {grid: ['start', 'end']}
     });
-  schedule.sendEmails();
+
+  // if (!schedule.hasErrors()){
+  
+  //   var availability = new View({
+  //     view: {class: 'availability', instance: 'weekly', init: 'fromRel'},
+  //     model: {class: 'availabilities', instance: 'index'},
+  //     refs: [{class: 'riders', instance: 'info'}, {class: 'restaurants', instance: 'info'}],//maybe not necess?
+  //     dates: {start: schedule.dates.start, end: schedule.dates.end},
+  //     rel: {view: schedule, join: 'shiftid', vols: ['status', 'restaurantid', 'start', 'end']}
+  //   });
+  //   schedule.rel = {view: availability, join: 'availabilityid', vols: ['status', 'riderid']};
+    
+  //   schedule.getConflictsWith(availability).showConflicts();
+    
+  //   if (!schedule.hasConflicts()){
+      schedule
+        .sendEmails()
+        .writeToModel()
+        .refreshViews(['grid', 'weekly', 'update', 'lookup']);  
+  //     availability
+  //       .writeFromRel(schedule)
+  //       .refreshViews(['grid', 'weekly', 'lookup']); 
+  //     // schedule.writeToCalendar();
+  //   }
+  // }
+  
+  // availability.writeToModel.refreshViews(['grid', 'weekly', 'lookup']);
 };
 
 
