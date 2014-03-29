@@ -475,10 +475,13 @@ function View(p){
   this.view = p.view;
   this.view.type = this.view.instance == 'grid' ? 'grid' : 'list';
   this.view.sheet = constructSheet(this.view.class,  this.view.instance);
-  if(this.view.type == 'grid' && this.view.init == 'fromRange'){this.view.gridType = this.cache.params.sheet.data[0].gridtype;}
+  
+  if(this.view.type == 'grid' && (this.view.init == 'fromRange' || this.view.init == 'fromAltInstance')){
+    this.view.gridType = this.cache.params.sheet.data[0].gridtype;
+  }
 
   //LOG VIEW PARAMS (for testing) 
-  for (var j in this.view){Logger.log('this.view['+j+']: ' + this.view[j]);}
+  // for (var j in this.view){Logger.log('this.view['+j+']: ' + this.view[j]);}
 
   this.model = p.model;
   this.model.sheet = constructSheet(this.model.class,  this.model.instance);
@@ -511,6 +514,7 @@ function View(p){
     } else {
       range = this.range;
     }
+    // Logger.log('range: ' + range);
     this.view.sheet.clearRange();
     this.view.sheet.setRange(range);
     this.view.sheet = constructSheet(this.view.class, this.view.instance);
@@ -523,18 +527,18 @@ function View(p){
     return this;
   };
 
-  function highlightDoubleBookings(){
-    for (var i = 1; i < 14; i++) {
-      for (var j = 0; j < self.view.sheet.data.length; j++) {
-        for (var k = j+1; k < self.view.sheet.data.length; k++) {
-          if (self.view.sheet.data[j][self.view.sheet.headers[i]] == self.view.sheet.data[k][self.view.sheet.headers[i]]){
-            self.view.sheet.g.getRange(j + self.view.sheet.row.first, i + self.view.sheet.col.first).setBackground('#ff9900');
-            self.view.sheet.g.getRange(k + self.view.sheet.row.first, i + self.view.sheet.col.first).setBackground('#ff9900');
-          }
-        }
-      }
-    }
-  }
+  // function highlightDoubleBookings(){
+  //   for (var i = 1; i < 14; i++) {
+  //     for (var j = 0; j < self.view.sheet.data.length; j++) {
+  //       for (var k = j+1; k < self.view.sheet.data.length; k++) {
+  //         if (self.view.sheet.data[j][self.view.sheet.headers[i]] == self.view.sheet.data[k][self.view.sheet.headers[i]]){
+  //           self.view.sheet.g.getRange(j + self.view.sheet.row.first, i + self.view.sheet.col.first).setBackground('#ff9900');
+  //           self.view.sheet.g.getRange(k + self.view.sheet.row.first, i + self.view.sheet.col.first).setBackground('#ff9900');
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
 
   function appendGridMetaData(){
     appendDate(self.view.sheet);
@@ -574,18 +578,20 @@ function View(p){
     } else {
       for (var i = 0; i < this.recordList.length; i++){//match record list rows to this.model.sheet rows by id
         var id = this.recordList[i].id;
-        if (id === undefined || id == ''){//if the view's id attr indicates a new record, create one 
-          Logger.log('writing new record to model.');
+        // Logger.log('this.recordList['+i+'].id: ' + this.recordList[i].id);
+        if (id === undefined || id === ''){//if the view's id attr indicates a new record, create one 
+          // Logger.log('writing new record to model.');
           this.writeNewRecordToModel(this.recordList[i], i);
         } else {//otherwise, overwrite all cells in this.model.sheet whose values don't match those in the record list
           for (var j = 0; j< this.vols.length; j++){
             var vol = this.vols[j];
             if (noMatch(this.recordList[i][vol], this.model.sheet.data[id][vol])){
-              Logger.log('writing record:');
-              Logger.log('id: ' + id);
-              Logger.log('vol: ' + vol);
-              Logger.log('row: ' + this.model.sheet.getRowNum(id));
-              Logger.log('col: ' + this.model.sheet.getColNum(vol));
+              // Logger.log('writing record:');
+              // Logger.log('id: ' + id);
+              // Logger.log('vol: ' + vol);
+              // Logger.log('row: ' + this.model.sheet.getRowNum(id));
+              // Logger.log('col: ' + this.model.sheet.getColNum(vol));
+              // Logger.log('VALUE - this.recordList['+i+']['+vol+']: ' + this.recordList[i][vol]);
               this.model.sheet.updateCell(this.model.sheet.getRowNum(id), this.model.sheet.getColNum(vol), this.recordList[i][vol]);
             }
           }        
@@ -653,25 +659,77 @@ function View(p){
     return this;
   };
 
-  this.writeFromRel = function (){
-    Logger.log('Running ' + this.view.class + '.writeFromRel()');
-    var rel = this.rel.view;
-    for (var i = 0; i < this.rel.view.recordList.length; i++) {//loop through foregin record list
-      var viewid = this.rel.view.recordList[i][this.rel.view.rel.join],//write join ids to models
-        relid = this.rel.view.recordList[i].id;
-      if (viewid !== '' && viewid !== undefined){
-        for (var j = 0; j < this.rel.vols.length; j++) {//loop through rel volatiles
+  // this.writeFromRel = function (){
+  //   Logger.log('Running ' + this.view.class + '.writeFromRel()');
+  //   var rel = this.rel.view;
+  //   for (var i = 0; i < this.rel.view.recordList.length; i++) {//loop through foregin record list
+  //     var relRec = this.rel.view.recordList[i],
+  //       // relid = relRec[i].id,
+  //       // relJoin = this.rel.join,
+  //       // viewJoin = this.rel.view.rel.join,
+  //       viewid = relRec[this.rel.view.rel.join];
+  //     if (viewid !== '' && viewid !== undefined){
+  //       var viewRec = this.getRecordFromId(viewid),
+  //         viewJoin = viewRec[this.rel.join],
+  //         relJoin = relRec[this.rel.view.rel.join];
+  //       if(relRec[this.rel.view.refs[1].idKey] === undefined || relRec[this.rel.view.refs[1].idKey] == ''){
+  //         viewRec[viewJoin] = '';
+  //         relRec[relJoin] = '';
+  //       }
+  //       if (this.rel.view.recordList)
+  //       for (var j = 0; j < this.rel.vols.length; j++) {//loop through rel volatiles
+  //         var vol = this.rel.vols[j];
+  //         if (this.getRecordFromId(viewid)[vol] !== this.rel.view.recordList[i][vol]){//match on join id & compare vol values between rels, write from rel if values don't match
+  //           this.model.sheet.updateCell(this.model.sheet.getRowNum(viewid), this.model.sheet.getColNum(vol), this.rel.view.recordList[i][vol]);
+  //         }
+  //       }
+  //     }        
+  //   }
+  //   this.writeToSelf();
+  //   this.model.sheet = constructSheet(this.view.sheet.class, this.view.sheet.instance);//refresh view object's copy of model to reflect changes just written to it
+  //   toast('Updated ' + this.view.class + ' model.');//alert user
+  //   Logger.log('Finished running ' + this.view.class + '.writeFromRel()');
+  //   return this;
+  // };
+
+  this.writeToRel = function(){
+    Logger.log('Running ' + this.view.class + '.writeToRel()');
+    var viewJoin = this.rel.join,
+      relJoin = this.rel.view.rel.join;
+    for (var i = 0; i < this.recordList.length; i++) {//loop through recordlist
+      if (this.recordList[i][viewJoin] !== undefined && this.recordList[i][viewJoin] !== ''){//proceed only for records joined to rel records
+        var viewid = this.recordList[i].id; 
+          relid = this.recordList[i][viewJoin],
+          relRec = this.rel.view.getRecordFromId(relid);
+        for (var j = 0; j < this.rel.vols.length; j++) {//overwrite rel values with volatile view values
           var vol = this.rel.vols[j];
-          if (this.getRecordFromId(viewid)[vol] != this.rel.view.recordList[i][vol]){//match on join id & compare vol values between rels, write from rel if values don't match
-            this.model.sheet.updateCell(this.model.sheet.getRowNum(viewid), this.model.sheet.getColNum(vol), this.rel.view.recordList[i][vol]);
+          Logger.log('this.recordList[i]['+vol+']: ' + this.recordList[i][vol]);
+          Logger.log('relRec['+vol+']: ' + relRec[vol]);
+          if (this.recordList[i][vol] !== relRec[vol]){//match records on join id & overwrite rel records that don't match view records
+            if (this.view.class == 'schedule' && this.recordList[i][vol] == 'unassigned'){
+              var val = 'available';
+            } else if (this.view.class == 'availability' && (this.recordList[i][vol] == 'available' || this.recordList[i][vol] == 'not available')){
+              var val = 'unassigned';
+            } else if (this.recordList[i][vol] === undefined){
+              var val = '';
+            } else {
+              var val = this.recordList[i][vol];
+            }
+            this.rel.view.model.sheet.updateCell(this.rel.view.model.sheet.getRowNum(relid), this.rel.view.model.sheet.getColNum(vol), val);
           }
+        } 
+        if (this.recordList[i][this.refs[1].idKey] === undefined || this.recordList[i][this.refs[1].idKey] === ''){ //delete joins if ref1 vals are null (ie if references to the entity joining the records has been deleted)
+          relRec[relJoin] = '';//delete join from rel RL
+          this.rel.view.model.sheet.updateCell(this.rel.view.model.sheet.getRowNum(relid), this.rel.view.model.sheet.getColNum(relJoin), '');//delete join from rel model
+          this.recordList[i][viewJoin] = '';//delete join from view RL
+          // this.model.sheet.updateCell(this.model.sheet.getRowNum(viewid), this.model.sheet.getColNum(viewJoin), '');//delete join from view model (unnecessary if writing to model immediately afterwards)
+          
         }
-      }        
+      }
     }
-    this.writeToSelf();
-    this.model.sheet = constructSheet(this.view.sheet.class, this.view.sheet.instance);//refresh view object's copy of model to reflect changes just written to it
-    toast('Updated ' + this.view.class + ' model.');//alert user
-    Logger.log('Finished running ' + this.view.class + '.writeFromRel()');
+    this.rel.view.model.sheet = constructSheet(this.rel.view.view.sheet.class, this.rel.view.view.sheet.instance);//refresh rel object's copy of model to reflect edits
+    toast('Updated ' + this.rel.view.model.class + 'model!');
+    Logger.log('Finished running ' + this.view.class + '.writeToRel()');
     return this;
   };  
 
@@ -695,12 +753,13 @@ function View(p){
         // if (isDoubleBooked(viewRl[refId][i], viewRl[refId])){self.doubleBookings.push(viewRl[refId][i].id);}
         for (var j = 0; j < relRl[refId].length; j++){//loop through rel records associated with ref
           if (matchOnDayAndPeriod(viewRl[refId][i], relRl[refId][j])) {//match on day and period
-            if (//match on records with status either not available or proposed/delegated/confirmed to a different ref
-              relRl[refId][j].status == 'not available' || //match on rel records with 'not available' status
-              (//match on records allocated to a different ref
-                relRl[refId][j].status != 'available' && 
-                relRl[refId][j].status != 'cancelled' && //tests if view proposed/delegated/confirmed
-                relRl[refId][self.rel.view.rel.join] != viewRl[refId].id//tests if rel record's join id is different than view record's join id (ie: associated w/ different ref)
+            Logger.log('rel join id: ' + relRl[refId][self.rel.view.rel.join]);
+            Logger.log ('view join id:' + viewRl[refId].id);
+            if (//match on records with status either not available or joined to a different record
+              relRl[refId][j].status == 'not available' ||
+              (
+                (relRl[refId][j][self.rel.view.rel.join] !== undefined && relRl[refId][j][self.rel.view.rel.join] !== '' && viewRl[refId][i][self.rel.join] !== undefined && viewRl[refId][i][self.rel.join] !== '')&&
+                (relRl[refId][j][self.rel.view.rel.join] !== viewRl[refId][i].id)// || relRl[refId][j].id !== viewRl[refId][i][self.rel.join]
               )
             ){//add records matching above (status & join) criteria to conflicts array, not matching to noConflicts
               self.conflicts.push({viewid: viewRl[refId][i].id, relid: relRl[refId][j].id});
@@ -720,15 +779,15 @@ function View(p){
       }
     };
 
-    function isDoubleBooked(rec, recs){
-      for (var i = 0; i < recs.length; i++) {
-        if(matchOnDayAndPeriod(rec, recs[i])) {
-          Logger.log('double booked!')
-          return true;
-        }
-      }
-      return false;
-    };
+    // function isDoubleBooked(rec, recs){
+    //   for (var i = 0; i < recs.length; i++) {
+    //     if(matchOnDayAndPeriod(rec, recs[i])) {
+    //       Logger.log('double booked!')
+    //       return true;
+    //     }
+    //   }
+    //   return false;
+    // };
 
     // //LOG CONFLICTS (for testing)
     // for (var i = 0; i < self.conflicts.length; i++) {
@@ -784,17 +843,17 @@ function View(p){
 
   function handleNoConflicts(){
     Logger.log('running handleNoConflicts()');
-    // Logger.log('self.noConflicts.length: ' + self.noConflicts.length);
+    Logger.log('self.noConflicts.length: ' + self.noConflicts.length);
     for (var i = 0; i < self.noConflicts.length; i++) {
       if (self.view.type == 'list'){//unhighlight noConflict rows that are still pink (because they used to contain a conflict)
-        // Logger.log('self.noConflicts['+i+'].viewid: ' + self.noConflicts[i].viewid);
+        Logger.log('self.noConflicts['+i+'].viewid: ' + self.noConflicts[i].viewid);
         var recordRow = self.view.sheet.g.getRange(getRowFromRecordId(self.noConflicts[i].viewid), self.view.sheet.col.first, 1, self.view.sheet.col.getLast());
          // Logger.log('recordRow.getValues(): ' + recordRow.getValues());
          // Logger.log ('recordRow.getBackground(): ' + recordRow.getBackground());
          if(recordRow.getBackground()== '#FF00FF'){
           recordRow.setBackground('#FFFFFF');
         }
-      }
+      }//vv write joins
       self.getRecordFromId(self.noConflicts[i].viewid)[self.rel.join] = self.noConflicts[i].relid;//set the record's join id to the id of the corresponding record in the view's rel
       var viewJoinRange = self.model.sheet.g.getRange(self.model.sheet.getRowNum([self.noConflicts[i].viewid]), self.model.sheet.getColNum(self.rel.join));//only update join id in model if it is different from current join id val
       if (viewJoinRange.getValue()!== self.noConflicts[i].relid){viewJoinRange.setValue(self.noConflicts[i].relid);}
@@ -818,13 +877,13 @@ function View(p){
     return this;
   };
 
+  this.concatVols = function (vols){
+    this.vols.concat(vols);
+    return this;
+  };
+
   this.hasErrors = function(){
-    for (var i in this.errors){
-      if (this.errors[i] !== undefined){
-        return true;
-      }
-    }
-    return false;
+    for (var i in this.errors){if (this.errors[i] !== undefined){return true;}}return false;
   };
 
   this.hasConflicts = function (){
@@ -861,9 +920,7 @@ function View(p){
     };
 
     self.getRecordFromId = function(id){
-      for (var i = 0; i < self.recordList.length; i++) {
-        if (self.recordList[i].id == id) {return self.recordList[i];} 
-      };
+      for (var i = 0; i < self.recordList.length; i++) {if (self.recordList[i].id == id) {return self.recordList[i];}}
     };
 
   };
@@ -933,14 +990,15 @@ function View(p){
   function getParamsFromAltInstance(class, instance){
     Logger.log('running getParamsFromAltInstance()!');
     var params = constructSheet(class+'Params', instance).data[0];
-    for (var j in params){
-      Logger.log('params['+j+']: ' + params[j])
-    }
+    // for (var j in params){
+    //   Logger.log('params['+j+']: ' + params[j])
+    // }
     return {
       ref0Names: params.ref0names,
       ref1Names: params.ref1names,
       start: params.start,
-      end: params.end
+      end: params.end,
+      gridType: params.gridType
     };
   };
 
@@ -1005,7 +1063,7 @@ function View(p){
     for (var i = 0; i < self.refs.length; i++){
       reconcileRef(self.refs[i]);
     }
-    Logger.log('finished running reconcileRefs()');
+    // Logger.log('finished running reconcileRefs()');
   };
 
   function reconcileRef(ref){
@@ -1046,8 +1104,20 @@ function View(p){
 
   function getGridRowColFromRecordId(id){
     for (var i = 0; i < self.cache.cellmap.sheet.data.length; i++) {
-      if (self.cache.cellmap.sheet.data[i].recordid == id)
-        return {row: self.cache.cellmap.sheet.data[i].row, col: self.cache.cellmap.sheet.data[i].col};
+      if (self.cache.cellmap.sheet.data[i].recordid == id){
+        return {
+          row: getGridRowFromCellMapping(self.cache.cellmap.sheet.data[i]), 
+          col: self.cache.cellmap.sheet.data[i].col
+        };        
+      }
+    }
+  };
+
+  function getGridRowFromCellMapping(cm){
+    for (var i = 0; i < self.cache.rowmap.sheet.data.length; i++) {
+      if(self.cache.rowmap.sheet.data[i].ref0id == cm.ref0id){
+        return self.cache.rowmap.sheet.data[i].row;
+      }
     };
   };
 
@@ -1085,8 +1155,11 @@ function View(p){
       confirmed: '-c',
       'cancelled free': '-xf',
       'cancelled charge': '-xc',
+      'late free': '-lf',
+      'late charge': '-lc',
       available: '-a',
-      'not available': '-n'
+      'not available': '-n',
+      'emergency only': '-e'
     }
     return codes[status];
   };
@@ -1099,8 +1172,11 @@ function View(p){
       '-c': 'confirmed',
       '-xf': 'cancelled free',
       '-xc': 'cancelled charge',
+      '-lf': 'late free',
+      '-lc': 'late charge',
       '-a': 'available',
-      '-n': 'not available'
+      '-n': 'not available',
+      '-e': 'emergency only'
     }
     return statuses[code];
   };
@@ -1164,15 +1240,15 @@ function View(p){
     self.refs = [];
     
     if (self.view.init == 'fromRel'){
-      Logger.log('initializing refs from rel');
+      // Logger.log('initializing refs from rel');
       self.refs[0] = self.rel.view.refs[1];
       self.refs[1] = self.rel.view.refs[0];
     } else if (self.view.init == 'fromLastWeek'){
-      Logger.log('initializing refs from last week');
+      // Logger.log('initializing refs from last week');
       self.refs = self.lw.refs;
     } else {
       for (var i = 0; i < p.refs.length; i++){
-        Logger.log('Initalizing ref for ref with class: ' + p.refs[i].class + ' and instance: ' + p.refs[i].instance);
+        // Logger.log('Initalizing ref for ref with class: ' + p.refs[i].class + ' and instance: ' + p.refs[i].instance);
         self.refs[i] = {
           class: p.refs[i].class,
           instance: p.refs[i].instance,
@@ -1232,9 +1308,10 @@ function View(p){
   //** vvv INITIALIZE VOLATILES vvv **///
   function initVols(){
     if (self.view.type == 'list'){
-      self.vols = ['riderid', 'status', 'billing', 'urgency', 'notes'];
+      self.vols = [self.refs[1].idKey, 'status'];
+      if (self.view.class == 'schedule'){self.vols.concat(['billing', 'urgency', 'notes']);}
     } else {//for grid views
-      self.vols = self.view.gridType == 'times' ? ['start', 'end'] : [self.refs[1].idKey, 'status'];
+      self.vols = self.view.gridType == 'times' ? [self.refs[1].idKey, 'start', 'end'] : [self.refs[1].idKey, 'status'];
     }
     //LOG VOLS (for testing) 
     for (var i = 0; i < self.vols.length; i++) {
@@ -1334,7 +1411,7 @@ function View(p){
       } else if (self.view.init == 'fromLastWeek'){
         initRecordListFromLastWeek();
       }
-      if (self.recordList.length > 0 && self.errors.recordList === undefined){
+      if (self.recordList.length > 0 && !self.errors.recordList){
         reconcileRefs();
         initRecordAccessors();
         self.recordsSortedByRef = [
@@ -1342,7 +1419,7 @@ function View(p){
           self.getRecordsSortedByRef(self.refs[1])
         ];
         Logger.log('Completed initRecordList!');
-      } else {
+      } else if (self.recordList.length < 0) {
         logNoRecordsError();
       }
       //LOG RECORD LIST (for testing only)
@@ -1381,7 +1458,7 @@ function View(p){
   function initRecordListFromSelf(){
     Logger.log('running initRecordListFromSelf()');
     if (self.view.type == 'list'){
-      Logger.log('initiating from list.')
+      // Logger.log('initiating from list.')
       for (var i = 0; i < self.view.sheet.data.length; i++){
         if (self.view.sheet.data[i].id === undefined || self.view.sheet.data[i].id === ''){//if no id is given (signifying a new record), populate record list row data from view row data
           var rec = getRecFromViewRow(self.view.sheet.data[i]);
@@ -1392,8 +1469,7 @@ function View(p){
         self.recordList.push(rec);
       }
     } else {//for grid 
-      Logger.log('initiating from grid.')
-      Logger.log('gridType:' + self.view.gridType);
+      // Logger.log('initiating from grid.')
       if (self.newRecs){//if this view is creating new records, get strings from all grid cells
         Logger.log('creating new records.')
         for (var i = 0; i < self.view.sheet.data.length; i++) {//loop through sheet rows
@@ -1409,10 +1485,10 @@ function View(p){
                 for (var k = 0; k < strs.length; k++) {//loop through strings
                   if (self.view.gridType == 'times'){
                     var volatileData = getVDFromTimeStr(strs[k], col,'', ref0id);//get time attributes from time strings
-                    self.recordList.push(getNewRecFromTimeVD(volatileData, k));//combine time attributes with default ref record values and push to recordList
+                    self.recordList.push(getNewRecFromTimeVD(volatileData, ref0id, k));//combine time attributes with default ref record values and push to recordList
                   } else {
                     var volatileData = getVDFromRefStr(strs[k], col, '');//get ref attributes from ref strings
-                    self.recordList.push(getNewRecFromTimeVD(volatileData, k));//combine ref attributes with default time record values and push to recordList
+                    self.recordList.push(getNewRecFromRefVD(volatileData, ref0id, col));//combine ref attributes with default time record values and push to recordList
                   }
                 }
               }             
@@ -1421,11 +1497,13 @@ function View(p){
         }
       } else {//if the view is modifying existing records, get strings cached cell mappings 
         for (var i = 0; i < self.cache.cellmap.sheet.data.length; i++){//loop through cell map and retrieve attribute values
+          Logger.log('i: ' + i);
           var  id = self.cache.cellmap.sheet.data[i].recordid, 
             col = self.cache.cellmap.sheet.data[i].col,
             ref0id = self.cache.cellmap.sheet.data[i].ref0id,
             index = self.cache.cellmap.sheet.data[i].index,
-            row = getGridRowFromCellMapping(self.cache.cellmap.sheet.data[i]),//lookup grid row in row map
+            row = getGridRowFromCellMapping(self.cache.cellmap.sheet.data[i]);//lookup grid row in row map
+            Logger.log('row: ' + row);
             str = self.view.sheet.data[row - self.view.sheet.row.first][self.view.sheet.headers[col - self.view.sheet.col.first]].split(', ')[index],
             rec = {};
           if (self.view.gridType == 'times'){
@@ -1440,7 +1518,7 @@ function View(p){
   }; 
 
   function getRecFromViewRow(row) {
-    Logger.log('running getRecFromViewRow()');
+    // Logger.log('running getRecFromViewRow()');
     var rlRow = {};
     //define rl start and end attributes from view row date, start, and end attributes
     rlRow.start = new Date(row.date);
@@ -1473,7 +1551,7 @@ function View(p){
 
 
   function getVDFromSheetRow(row){
-    Logger.log('running getVDFromSheetRow');
+    // Logger.log('running getVDFromSheetRow');
     var vd = {id: row.id};
     for (var i = 0; i < self.vols.length; i++){
       var vol = self.vols[i];
@@ -1501,16 +1579,8 @@ function View(p){
     return vd;
   };
 
-  function getGridRowFromCellMapping(cm){
-    for (var i = 0; i < self.cache.rowmap.sheet.data.length; i++) {
-      if(self.cache.rowmap.sheet.data[i].ref0id == cm.ref0id){
-        return self.cache.rowmap.sheet.data[i].row;
-      }
-    };
-  };
-
   function getVDFromRefStr(str, col, id){    
-    Logger.log('running getVDFromRefStr()');
+    // Logger.log('running getVDFromRefStr()');
     var code = str.slice(str.indexOf('-'), str.length).trim(),
       ref1Name = str.slice(0, str.indexOf('-')).trim(),
       idKey = self.refs[1].idKey,
@@ -1532,31 +1602,25 @@ function View(p){
   };
 
   function getVDFromTimeStr(str, col, id, ref0id){
-    Logger.log('running getVDFromTimeStr('+str+', '+col+', '+id+', '+ref0id+')');
+    // Logger.log('running getVDFromTimeStr('+str+', '+col+', '+id+', '+ref0id+')');
     var date = getDateFromCol(col),
-      period = getPeriodFromCol(col),
-    // Logger.log('date: ' + date);
-    // Logger.log('period:' + period);      
-      start = parseFormattedTime(date, str.slice(0, str.indexOf('-') - 1)),
-      end = parseFormattedTime(date, str.slice(str.indexOf('-')+2, str.length));
-      if (end.getTime() < start.getTime()){end = end.incrementDate(1);}//correct for end times after midnight
-      rec = {};
-
-    Logger.log('*start: ' + start);
-    Logger.log('*end: ' + end);
+      period = getPeriodFromCol(col),     
+      start = parseFormattedTime(date, str.trim().slice(0, str.indexOf('-') - 1)),
+      end = parseFormattedTime(date, str.trim().slice(str.indexOf('-')+2, str.length));
+      // Logger.log('*start: ' + start);
+      // Logger.log('*end: ' + end);
     if (!start.error && !end.error){
-      rec = {
-        id: id,
-        start: start,
-        end: end,
-        am: period == 'am' ? true : false,
-        pm: period == 'pm' ? true : false 
-      };  
-      rec[self.refs[0].idKey] = ref0id;
-      return rec;      
-    } else {
-      Logger.log('ERROR: records could not be saved because of incorrectly formatted dates.');
+      if (end.getTime() < start.getTime()){end = end.incrementDate(1);}//correct for end times after midnight
     }
+    var rec = {
+      id: id,
+      start: start.error ? 'error' : start,
+      end: end.error ? 'error' : end,
+      am: period == 'am' ? true : false,
+      pm: period == 'pm' ? true : false 
+    };  
+    rec[self.refs[0].idKey] = ref0id;
+    return rec; 
   };
 
   function getDateFromCol(col){
@@ -1568,26 +1632,33 @@ function View(p){
   };
 
   function parseFormattedTime(date, ft){
-    Logger.log('running parseFormattedTime()');
-    var date = new Date(date.toDateString()),
-      period = ft.slice(-2, ft.length),
-      hr = period == 'am' ? parseAmHours(Number(ft.slice(0, ft.indexOf(':')))) : parsePmHours(Number(ft.slice(0, ft.indexOf(':')))), 
-      min = Number(ft.slice(ft.indexOf(':') +1, -2));
-
-    if (hr === undefined || min === undefined){
-      var error = {error: true, message: 'ERROR: you provided an incorrectly formatted time in row ' + m.row + ', column ' + m.col};
-      toast(error.message);
-      Logger.log(error.message);
-      return error;
+    // Logger.log('running parseFormattedTime('+date+', '+ ft+')');
+    if (!timeHasCorrectFormat(ft)){
+      logRlTimeFormatError(ft);
+      return {error: true};      
     } else {
+      var date = new Date(date.toDateString()),
+        period = ft.slice(-2, ft.length),
+        hr = period == 'am' ? parseAmHours(Number(ft.slice(0, ft.indexOf(':')))) : parsePmHours(Number(ft.slice(0, ft.indexOf(':')))), 
+        min = Number(ft.slice(ft.indexOf(':') +1, -2));      
       date.setHours(hr);
       date.setMinutes(min);
-      return date;      
+      return date;       
     }
   };
 
+  function timeHasCorrectFormat(ft){
+    Logger.log('running timeHasCorrectFormat('+ft+')');
+    Logger.log('ft.length: ' + ft.length);
+    if (ft.indexOf(':') < 0){return false;}
+    if (ft.indexOf('am') < 0 && ft.indexOf('pm') < 0){return false;}
+    if (ft.length < 6 || ft.length > 7){return false;}
+    return true;
+  };
+
+
   function parseAmHours(hr){
-    if (hr == 0){return 12;} else {return hr;}
+    if (hr == 12){return 0;} else {return hr;}
   };
 
   function parsePmHours(hr){
@@ -1595,16 +1666,18 @@ function View(p){
   };
 
   function getRecFromVD(vd){
-    var id = vd.id, row = {};
-    for (var attr in vd){row[attr] = vd[attr];}//retrieve all volatile values from vd{}
+    var id = vd.id, rec = {};
+    for (var attr in vd){rec[attr] = vd[attr];}//retrieve all volatile values from vd{}
     for (var attr in self.model.sheet.data[id]){//retrieve all stable values (ie values not attributes of vd{}), from model
-      if (!(attr in vd)){row[attr] = self.model.sheet.data[id][attr];}
+      if (!(attr in vd)){rec[attr] = self.model.sheet.data[id][attr];}
     }
-    return row;
+    return rec;
   };
 
-  function getNewRecFromTimeVD(vd, index){
+  function getNewRecFromTimeVD(vd, ref0id, index){
+    vd[self.refs[0].idKey] = ref0id;
     if (self.view.class == 'availability'){
+      vd.status = 'available';
       return vd;
     } else if (self.view.class == 'schedule'){
       vd.status = 'unassigned';
@@ -1614,7 +1687,9 @@ function View(p){
     }
   };
 
-  function getNewRecFromRefVD(vd, col){
+  function getNewRecFromRefVD(vd, ref0id, col){
+    // Logger.log('running getNewRecFromRefVD('+vd+', '+col+')');
+    vd[self.refs[0].idKey] = ref0id;
     if (self.view.class == 'availability'){
       var period = getPeriodFromCol(col);
       vd.start = new Date(getDateFromCol(col).toDateString());
@@ -1623,6 +1698,8 @@ function View(p){
       vd.pm = period == 'pm' ? true: false;
       return vd;
     } else if (self.view.class == 'schedule'){
+      vd.urgency = 'weekly';
+      vd.billing = index > 0 ? 'extra rider' : 'normal';
       return vd;
     }
   };
@@ -1647,13 +1724,18 @@ function View(p){
 
   function logRlRefLookupError(nameKey, name){
     Logger.log('running logRecordListError()');
-    if (self.errors.recordList === undefined){
-      self.errors.recordList = [];
-    }
+      self.errors.recordList = self.errors.recordList || [];
     var error = 'ERROR: There was no ' + nameKey + ' found with name ' + name + '. (' + name + ' is either not in the database or their status is inactive.)';
     self.errors.recordList.push(error);//quotes and brackets in case error obj or error.recordList array not yet defined
     Logger.log(error);
     toast(error);
+  };
+
+  function logRlTimeFormatError(ft){
+    self.errors.recordList = self.errors.recordList || [];
+      var error = 'ERROR: you provided an incorrectly formatted time: ' + ft;
+      toast(error);
+      Logger.log(error);
   };
 
   function logNoRecordsError(){
@@ -1716,7 +1798,7 @@ function View(p){
         });      
       }
       initGridMapRecordIds();
-      Logger.log('finished running initGridMap()!');
+      // Logger.log('finished running initGridMap()!');
       // //LOG GRID MAP (for testing)
       // for (var i = 0; i < self.gridMap.length; i++){
       //   for (var day in self.gridMap[i].info){
@@ -1742,7 +1824,7 @@ function View(p){
   };
 
   function initRecordIdsForGridCell(index, day, period){
-    Logger.log('running initRecordIdsforGridCell('+index+', '+day+', '+period+')');
+    // Logger.log('running initRecordIdsforGridCell('+index+', '+day+', '+period+')');
     var am = (period == 'am') ? true : false,
       pm = !am,
       date = self.dates.weekMap[day],
@@ -1807,7 +1889,7 @@ function View(p){
 
   function initListRangeCellVal(record, header){
     if (header in record){//if the data type in the record list matches the data type specified by the header, return the value without formatting
-      return record[header];
+      return record[header] === undefined ? '' : record[header];
     } else if (isRef(header)){//if the header refers to a ref name, return the name corresponding to the ref id     
       var idKey = header + 'id',
         class = header + 's';
@@ -1825,7 +1907,7 @@ function View(p){
   };
 
   function initGridRange(){
-    Logger.log('running initGridRange()!');
+    // Logger.log('running initGridRange()!');
     for (var i = 0; i < self.gridMap.length; i ++){
       self.range.push(initGridRangeRow(i));
     }
@@ -1843,13 +1925,13 @@ function View(p){
   };
 
   function initGridRangeCellVals(recordIds){
-    Logger.log('Running initGridRangeCellVals('+recordIds+')!');
+    // Logger.log('Running initGridRangeCellVals('+recordIds+')!');
     var cell = [];
     for (var i = 0; i < recordIds.length; i++){
       var rec = self.view.init == 'fromLastWeek' ? self.recordList[recordIds[i]] : self.getRecordFromId(recordIds[i]);
         idKey = self.refs[1].idKey,
         str = getGridRecordString(rec, idKey);
-        Logger.log('str: ' + str);
+        // Logger.log('str: ' + str);
       cell.push(str);
     }
     cell = cell.join(', ');
@@ -1859,10 +1941,14 @@ function View(p){
   };
 
   function getGridRecordString(rec, idKey){
+    // Logger.log('running getGridRecordString('+rec+', '+idKey+')');
     if (self.view.gridType == 'refs'){
-      var refName = (rec[idKey] === undefined || rec[idKey] === '')? '' : getRefNameFromId(1, rec[idKey]),
-        status = getCodeFromStatus(rec.status);
-      return refName + ' ' + status;
+      if (rec.status === undefined){
+        return '';
+      } else {
+        var refName = (rec[idKey] === undefined || rec[idKey] === '')? '' : getRefNameFromId(1, rec[idKey]);
+        return refName + ' ' + getCodeFromStatus(rec.status);
+      }
     } else if (self.view.gridType == 'times'){
       return rec.start.getFormattedTime() + ' - ' + rec.end.getFormattedTime();
     }
@@ -2218,45 +2304,7 @@ function View(p){
 
 
 
-//*** vvv CALLING FUNCTIONS vvv ***//
-
-function createMenus() {//creates event triggers for calling functions
-    var menuEntries = [
-      {
-          name: 'Save Edits',
-          functionName: 'saveEdits' 
-      },{        
-          name: 'Send Emails',
-          functionName: 'sendEmails'
-      },{        
-          name: 'Update Calendar',
-          functionName: 'updateCalendar'
-      },{        
-          name: 'Refresh View',
-          functionName: 'initRefreshViewUi'
-      },{
-          name: 'Clone Last Week',
-          functionName: 'initCloneLastWeekUi' 
-      },{
-          name: 'Create Records',
-          functionName: 'initCreateRecordsUi' 
-      },
-    ];
-    SpreadsheetApp.getActiveSpreadsheet().addMenu("Functions", menuEntries);
-};
-
-function initRefreshViewUi(){
-  initUi('refreshView');
-};
-
-function initCloneLastWeekUi(){
-  initUi('cloneLastWeek');
-};
-
-function initCreateRecordsUi(){
-  initUi('createRecords');
-};
-
+//*** vvv UI APP vvv ***//
 
 function initUi(serverHandler){//initiate UI dialog
 
@@ -2333,3 +2381,5 @@ function initUi(serverHandler){//initiate UI dialog
   //  sheet.g.getParent().show(app);
   SpreadsheetApp.getActiveSpreadsheet().show(app);
 };
+
+//** ^^ UI APP ^^ **//

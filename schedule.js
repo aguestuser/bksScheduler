@@ -2,6 +2,43 @@
 COPYRIGHT 2014 AUSTIN GUEST -- ALL RIGHTS RESERVED
 **************************************************/
 
+function createMenus() {//creates event triggers for calling functions
+    var menuEntries = [
+      {
+          name: 'Save Edits',
+          functionName: 'saveEdits' 
+      },{        
+          name: 'Send Emails',
+          functionName: 'sendEmails'
+      },{        
+          name: 'Update Calendar',
+          functionName: 'updateCalendar'
+      },{        
+          name: 'Refresh View',
+          functionName: 'initRefreshViewUi'
+      },{
+          name: 'Clone Last Week',
+          functionName: 'initCloneLastWeekUi' 
+      },{
+          name: 'Create Records',
+          functionName: 'initCreateRecordsUi' 
+      },
+    ];
+    SpreadsheetApp.getActiveSpreadsheet().addMenu("Functions", menuEntries);
+};
+
+function initRefreshViewUi(){
+  initUi('refreshView');
+};
+
+function initCloneLastWeekUi(){
+  initUi('cloneLastWeek');
+};
+
+function initCreateRecordsUi(){
+  initUi('createRecords');
+};
+
 function refreshView(e){
 
   var app = UiApp.getActiveApplication(),//open ui instance
@@ -56,7 +93,9 @@ function createRecords(e){
     };
 
   schedule = new View(sp);
-  schedule.writeToModel().refreshViews(['grid', 'weekly', 'update', 'lookup']);
+  if (!schedule.hasErrors()){
+    schedule.writeToModel().refreshViews(['grid']);
+  }
   return app.close();
 };
 
@@ -69,38 +108,38 @@ function saveEdits(){
     });
   
   if (!schedule.hasErrors()){
-    schedule.writeToModel().refreshViews(['grid', 'weekly', 'update', 'lookup']);
-  }      
-
+    
     var availability = new View({
       view: {class: 'availability', instance: 'weekly', init: 'fromRel'},
       model: {class: 'availabilities', instance: 'index'},
       refs: [{class: 'riders', instance: 'info'}, {class: 'restaurants', instance: 'info'}],//maybe not necess?
       dates: {start: schedule.dates.start, end: schedule.dates.end},
-      rel: {view: schedule, join: 'shiftid', vols: ['status', 'restaurantid', 'start', 'end']}
+      rel: {view: schedule, join: 'shiftid', vols: ['status', 'riderid']}
     });
 
     if(!availability.hasErrors()){
       
-      schedule.rel = {view: availability, join: 'availabilityid', vols: ['status', 'riderid']};
-      schedule.getConflictsWith(availability).showConflicts();
+      schedule.rel = {view: availability, join: 'availabilityid', vols: ['status', 'restaurantid', 'start', 'end']};
+    
+      schedule
+        .getConflictsWith(availability)
+        .showConflicts();
       
       if (!schedule.hasConflicts()){
         schedule
+          .writeToRel()
           .writeToModel()
-          .refreshViews(['grid', 'weekly', 'update', 'lookup']);  
+          .refreshViews(['grid', 'weekly', 'update']);  
         availability
-          .writeFromRel(schedule)
-          .refreshViews(['grid', 'weekly', 'lookup']); 
-        schedule.writeToCalendar();
+          .refreshViews(['grid', 'weekly']); 
       }
-    }      
-  }
+    }  
+  }          
 };
 
 function sendEmails(){
   var schedule = new View({
-      view: {class: 'schedule', instance: getWsName(), init: 'fromRange', gridType: 'refs'},
+      view: {class: 'schedule', instance: getWsName(), init: 'fromRange'},
       model: {class: 'shifts', instance: 'index'},
       refs: [{class: 'restaurants', instance: 'info'}, {class: 'riders', instance:'info'}]
     });
@@ -112,28 +151,30 @@ function sendEmails(){
       model: {class: 'availabilities', instance: 'index'},
       refs: [{class: 'riders', instance: 'info'}, {class: 'restaurants', instance: 'info'}],//maybe not necess?
       dates: {start: schedule.dates.start, end: schedule.dates.end},
-      rel: {view: schedule, join: 'shiftid', vols: ['status', 'restaurantid', 'start', 'end']}
+      rel: {view: schedule, join: 'shiftid', vols: ['status', 'riderid']}
     });
-    schedule.rel = {view: availability, join: 'availabilityid', vols: ['status', 'riderid']};
+
+    schedule.rel = {view: availability, join: 'availabilityid', vols: ['status', 'restaurantid', 'start', 'end']};
     
-    schedule.getConflictsWith(availability).showConflicts();
+    schedule
+      .getConflictsWith(availability)
+      .showConflicts();
     
     if (!schedule.hasConflicts()){    
       schedule
         .sendEmails()
+        .writeToRel()
         .writeToModel()
-        .refreshViews(['grid', 'weekly', 'update', 'lookup']);  
+        .refreshViews(['grid', 'weekly', 'update']);  
       availability
-        .writeFromRel(schedule)
-        .refreshViews(['grid', 'weekly', 'lookup']); 
+        .refreshViews(['grid', 'lookup']); 
     }
   }
-  
 };
 
 function updateCalendar(){
     var schedule = new View({
-      view: {class: 'schedule', instance: getWsName(), init: 'fromRange', gridType: 'refs'},
+      view: {class: 'schedule', instance: getWsName(), init: 'fromRange'},
       model: {class: 'shifts', instance: 'index'},
       refs: [{class: 'restaurants', instance: 'info'}, {class: 'riders', instance:'info'}]
       // vols: {grid: ['riderid', 'status'], list: ['riderid', 'status']},
@@ -145,3 +186,4 @@ function updateCalendar(){
     .writeToModel();
 
 };
+
