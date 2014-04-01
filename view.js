@@ -2,455 +2,6 @@
 COPYRIGHT 2014 AUSTIN GUEST -- ALL RIGHTS RESERVED
 **************************************************/
 
-//*CONSTRUCT SHEET OBJECTS
-
-function constructSheet(ss, ws){
-  // Logger.log('ss: ' + ss);
-  // Logger.log('ws: ' + ws);
-  var sheets = {
-        riders: {
-          key: '0AkfgEUsp5QrAdEt2eU9PcWhKbGVoUzlOS2RkU2RxMEE',
-          worksheets: ['info', 'assignments', 'metrics']
-        },
-        restaurants: {
-          key: '0AkfgEUsp5QrAdFJyOW9RMjk5M2FNMXI4bmJBMzMwWFE',
-          worksheets: ['info', 'needs', 'metrics']
-        },
-        shifts: {
-          key: '0AkfgEUsp5QrAdEdJc3BmMEt0TXFTdmVHY1cyWHdMTFE',
-          worksheets: ['index']
-        },
-        availabilities: {
-          key: '0AkfgEUsp5QrAdEdvSWQ0eVRMZmR1RXZRRW13LWY0ZEE',
-          worksheets: ['index']
-        },
-        schedule: {
-          key: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
-          worksheets: ['grid', 'weekly', 'update', 'lookup']
-        },
-        scheduleParams: {
-          key: '0AkfgEUsp5QrAdHp6Q2dES0Z5Tm9YOGZsSWRnUEFuX0E',
-          worksheets: ['grid', 'weekly', 'update', 'lookup']
-        },
-        scheduleGridMaps: {
-          key: '0AkfgEUsp5QrAdEE4eUhDT2RnNmlwRnQ0dkRsSHZlS3c',
-          worksheets: ['rowmap', 'cellmap']
-        },
-        availability: {
-          key: '0AkfgEUsp5QrAdG54d2VpakNXZEFsS05yRjByQmxwbmc',
-          worksheets: ['grid', 'weekly', 'lookup']
-        },
-        availabilityParams:{
-          key: '0AkfgEUsp5QrAdHBqa2tkTXlwVnBoY0M5cmxrOUtRMVE',
-          worksheets: ['grid', 'weekly','lookup']
-        },
-        availabilityGridMaps: {
-          key: '0AkfgEUsp5QrAdHloc1pSM0YtQjBxdjV2Qktrdzd4bHc',
-          worksheets: ['rowmap', 'cellmap']
-        },
-        emailElements: {
-          key: '0AkfgEUsp5QrAdDBqR1VRNVJzZ3RPTU5jNGNPUkJYY1E',
-          worksheets: ['notes', 'reminders', 'users']
-        }
-      },
-    sheet = new Sheet(sheets[ss].key, sheets[ss].worksheets.indexOf(ws));
-    sheet.class = ss;
-    sheet.instance = ws;
-  return sheet;
-};
-
-//construct sheet objects
-function Sheet(key, index) {
-  var self = this;
-
-  //store copy of google apps version of sheet object
-  this.g = SpreadsheetApp.openById(key).getSheets()[index];
-  
-  //offset row/col picker for UI if the sheet in question is the schedule, otherwise set R,C of first cell to 2,1
-  this.col = {
-    first: 1,
-    getLast: function(){return self.g.getLastColumn()},
-    getNum: function(){return self.g.getLastColumn()}
-  };
-  this.row = {
-    first: 2,
-    getLast: function(){return self.g.getLastRow()},
-    getNum: function(){return self.g.getLastRow() - 2 + 1}
-  };
-
-  //translate row data to JSON (see script below)
-  this.data = getRowsData(this.g, this.g.getRange(this.row.first, this.col.first, this.row.getLast(), this.col.getLast()), 1);
-
-  //create array of header names
-  this.headers = normalizeHeaders(this.g.getRange(1, 1, 1, this.col.getLast()).getValues()[0]);
-
-   //*ACCESSOR METHODS
-
-  this.getCell = function (row, col){
-    return this.g.getRange(row, col).getValue();
-  };
-
-  this.updateCell = function(row, col, val){
-    this.g.getRange(row, col).setValue(val);
-    return this;
-  };
-
-  this.getRowNum = function(id){
-    for (var i = 0; i < this.data.length; i++){
-      if (this.data[i].id == id) {
-        return (i + this.row.first);
-      }
-    }
-  };
-
-  this.getRow = function(row){
-    return this.g.getRange(row, this.col.first, 1, this.col.getNum());    
-  }
-
-  this.updateRow = function(srcSheet, srcRow, dstRow){
-    var src = srcSheet.getRow(srcRow).getValues();
-    this.getRow(dstRow).setValues(src);
-    return this; // for method chaining
-  };
-
-
-  this.getColNum = function (headerName){
-    return this.headers.indexOf(headerName) + 1;
-  };
-
-  this.clearRange = function (){
-    this.g
-      .getRange(this.row.first, this.col.first, this.row.getNum(), this.col.getNum())
-      .clear({contentsOnly:true});
-  };
-
-  this.setRange = function (range){
-    // Logger.log('.setRange range: ' + range);
-    // Logger.log('range.length: ' + range.length);
-    // Logger.log('typeof(this): ' + typeof(this));
-    // Logger.log('typeof(range): ' + typeof(this));
-    this.g
-      .getRange(this.row.first, this.col.first, range.length, range[0].length)
-      .setValues(range);
-  };
-
-};
-
-//*TRANSLATE SPREADSHEET DATA TO JSON
-
-function getRowsData(sheet, range, columnHeadersRowIndex) {
-  columnHeadersRowIndex = columnHeadersRowIndex || range.getRowIndex() - 1;
-  var numColumns = range.getLastColumn() - range.getColumn() + 1;
-  var headersRange = sheet.getRange(columnHeadersRowIndex, range.getColumn(), 1, numColumns);
-  var headers = headersRange.getValues()[0];
-  return getObjects(range.getValues(), normalizeHeaders(headers));
-}
-
-function getObjects(data, keys) {
-  var objects = [];
-  for (var i = 0; i < data.length; ++i) {
-    var object = {};
-    var hasData = false;
-    for (var j = 0; j < data[i].length; ++j) {
-      var cellData = data[i][j];
-      if (isCellEmpty(cellData)) {
-        continue;
-      }
-      object[keys[j]] = cellData;
-      hasData = true;
-    }
-    if (hasData) {
-      objects.push(object);
-    }
-  }
-  return objects;
-}
-
-function normalizeHeaders(headers) {
-  var keys = [];
-  for (var i = 0; i < headers.length; ++i) {
-    var key = normalizeHeader(headers[i]);
-    if (key.length > 0) {
-      keys.push(key);
-    }
-  }
-  return keys;
-}
-
-function normalizeHeader(header) {
-  var key = "";
-  var upperCase = false;
-  for (var i = 0; i < header.length; ++i) {
-    var letter = header[i];
-    if (letter == " " && key.length > 0) {
-      upperCase = true;
-      continue;
-    }
-    if (!isAlnum(letter)) {
-      continue;
-    }
-    if (key.length == 0 && isDigit(letter)) {
-      continue; // first character must be a letter
-    }
-    if (upperCase) {
-      upperCase = false;
-      key += letter.toUpperCase();
-    } else {
-      key += letter.toLowerCase();
-    }
-  }
-  return key;
-}
-
-function isCellEmpty(cellData) {
-  return typeof(cellData) == "string" && cellData == "";
-}
-
-// Returns true if the character char is alphabetical, false otherwise.
-function isAlnum(char) {
-  return char >= 'A' && char <= 'Z' ||
-    char >= 'a' && char <= 'z' ||
-    isDigit(char);
-}
-
-// Returns true if the character char is a digit, false otherwise.
-function isDigit(char) {
-  return char >= '0' && char <= '9';
-}
-
-// Given a JavaScript 2d Array, this function returns the transposed table.
-
-function arrayTranspose(data) {
-  if (data.length == 0 || data[0].length == 0) {
-    return null;
-  }
-
-  var ret = [];
-  for (var i = 0; i < data[0].length; ++i) {
-    ret.push([]);
-  }
-
-  for (var i = 0; i < data.length; ++i) {
-    for (var j = 0; j < data[i].length; ++j) {
-      ret[j][i] = data[i][j];
-    }
-  }
-
-  return ret;
-}
-
-function objectTranspose(obj){
-  var arr = [];
-  for (var i in obj){
-    arr.push(obj[i]);
-  }
-  return arr;
-};
-
-//* vvv UTILITY FUNCTIONS vvv *//
-
-function getSsName(){
-  return SpreadsheetApp.getActiveSpreadsheet().getName();
-};
-
-function getWsName(){
-  return SpreadsheetApp.getActiveSheet().getName();
-};
-
-//add dedupe method to Array prototype
-Array.prototype.dedupe = function() {
-    var i, 
-      obj ={}, 
-      out=[];
-    for (i = 0; i < this.length; i++){
-      obj[this[i]] = typeof(this[i]);
-    }
-    for (i in obj){
-      if (obj[i] != 'undefined'){out.push(obj[i] == 'number' ? Number(i) : i);}
-    }
-    // for (i=0; i < out.length; i++){
-    //   this[i] = out[i];
-    // }
-    // this.splice(out.length, this.length - out.length);
-    return out;
-    // this = out;
-    // return this;
-};
-
-//add uppercase first char method to String prototyp
-String.prototype.upperFirstChar = function(){
-  return this.charAt(0).toUpperCase() + this.slice(1);
-};
-
-//add lowercase first char method to String prototyp
-String.prototype.lowerFirstChar = function(){
-  return this.charAt(0).toLowerCase() + this.slice(1);
-};
-
-
-//add increment date function to Date object prototype
-Date.prototype.incrementDate = function(numDays){
-  return new Date(this.getTime() + numDays*(24 * 60 * 60 * 1000));
-  //return this;
-};
-
-//
-Date.prototype.setToMidnight = function(){
-  this.setHours(0);
-  this.setMinutes(0);
-  this.setSeconds(0);
-  this.setMilliseconds(0);
-  return this;
-};
-
-//add get week start function to Date prototype (will return date object for the Monday of the week any given date is in)
-Date.prototype.getWeekStart = function(){
-  var initTime = this.getTime(); 
-    day = this.getDay(),
-    diff = this.getDate() - day + (day == 0 ? -6:1); // adjust when day is sunday
-    returnVal = new Date(this.setDate(diff)).setToMidnight();
-    this.setTime(initTime);
-    return returnVal;
-};
-
-Date.prototype.getWeekMap = function(){
-  var weekStart = this.getWeekStart();
-  return {
-    mon: weekStart,
-    tue: weekStart.incrementDate(1),
-    wed: weekStart.incrementDate(2),
-    thu: weekStart.incrementDate(3),
-    fri: weekStart.incrementDate(4),
-    sat: weekStart.incrementDate(5),
-    sun: weekStart.incrementDate(6)
-  }
-};
-
-
-
-Date.prototype.getDayName = function(){
-  var dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  return dayNames[this.getDay()];
-};
-
-
-Date.prototype.getFormattedTime = function(){
-  var initHr = this.getHours(), 
-    dif = 0;
-  if (initHr > 12){
-    dif = -12
-  } else if (initHr == 0){
-    dif = 12;
-  }
-  var period = this.getHours() >= 12 ? 'pm' : 'am',
-    hr = initHr + dif,
-    singDig = this.getMinutes().toString().length == 1 ? true : false,
-    min = singDig ? '0' + this.getMinutes().toString() : this.getMinutes();
-  return hr + ':' + min + period;
-};
-
-Date.prototype.getFormattedDate = function(){
-  var month = this.getMonth() + 1,
-    date = this.getDate(),
-    str = month + '/' + date;
-  return str;
-}
-
-function toast(string){
-  SpreadsheetApp.getActiveSpreadsheet().toast(string);
-};
-
-function getDayNum(dayName){
-  var dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  return dayNames.indexOf(dayName);
-};
-
-
-function getIdsFromNames(model, names){
-  var ids = [];
-  for (var i = 0; i < names.length; i++){
-    var result = getIdFromName(model, names[i]);
-    if (result !== undefined){
-      ids.push(getIdFromName(model, names[i]));
-    }
-  }
-  return ids; 
-};
-
-function getIdFromName(model, name){
-  for (var i = 0; i < model.data.length; i++){
-    if (model.data[i].name == name){
-      return model.data[i].id;
-    }
-  }
-  var error = 'ERROR: there was no ' + model.class.slice(0, -1) + ' found with name: ' + name;
-  toast(error);
-  Logger.log(error);
-};
-
-function getRecordsFromModelByIds(model, ids){
-  for (var i = 0; i < ids.length; i++){
-    records.push(getRecordById(model, id));
-  }
-  return records;
-};
-
-function getRecordFromModelById(model, id){
-  // Logger.log('running getRecordFromModelById('+model.instance+', '+id+')');
-  for (var i = 0; i < model.data.length; i++) {
-    // Logger.log('model.data['+i+'].id: ' + model.data[i].id);
-    if (model.data[i].id === id){
-      // Logger.log('match found!');
-      return model.data[i];
-    }
-  }
-};
-
-function getActiveIdsFromModel(model){
-  var ids = [];
-  for (var i = 0; i < model.data.length; i++){
-    if (model.data[i].active){ids.push(model.data[i].id);}
-  }
-  return ids;
-};
-
-function getActiveNamesFromModel(model){
-  var names = [];
-  for (var i = 0; i < model.data.length; i++){
-    if (model.data[i].active){names.push(model.data[i].name);}
-  }
-  return names;
-}
-
-
-function getNamesFromIds(model, ids){
-  var names = [];
-  for (var i=0; i < ids.length; i++){
-    names.push(getNameFromId(model, ids[i]));
-  }
-  return names;
-};
-
-function getNameFromId(model, id){
-  // Logger.log('running getNamesFromId('+model.class +'.'+ model.instance +', '+id+')');
-  return model.data[id].name;
-};
-
-function getRefIdsFromRecords(records, refName){
-  var refIds = [];
-  for (var i = 0; i < records.length; i++){
-    refIds.push(getRefIdFromRecord(records[i], refName));
-  }
-  return refIds;
-};
-
-function getRefIdFromRecord(record, refName){
-  return record[refName + 'id'];
-};
-
-//* ^^^ UTILITY FUNCTIONS ^^^ *//
-
-
 //*** VIEW CONSTRUCTOR FUNCTION ***//
 
 function View(p){
@@ -467,14 +18,14 @@ function View(p){
   this.newRecs = p.newRecs;
 
   this.cache = {
-    params: {class: p.view.class+'Params', instance: p.view.instance, sheet: constructSheet(p.view.class+'Params', p.view.instance)},
-    rowmap: {class: p.view.class+'GridMaps', instance: 'rowmap', sheet: constructSheet(p.view.class+'GridMaps', 'rowmap')},
-    cellmap: {class: p.view.class+'GridMaps', instance: 'cellmap', sheet: constructSheet(p.view.class+'GridMaps', 'cellmap')}
+    params: {class: p.view.class+'Params', instance: p.view.instance, sheet: new Sheet(p.view.class+'Params', p.view.instance)},
+    rowmap: {class: p.view.class+'GridMaps', instance: 'rowmap', sheet: new Sheet(p.view.class+'GridMaps', 'rowmap')},
+    cellmap: {class: p.view.class+'GridMaps', instance: 'cellmap', sheet: new Sheet(p.view.class+'GridMaps', 'cellmap')}
   };
 
   this.view = p.view;
   this.view.type = this.view.instance == 'grid' ? 'grid' : 'list';
-  this.view.sheet = constructSheet(this.view.class,  this.view.instance);
+  this.view.sheet = new Sheet(this.view.class,  this.view.instance);
   
   if(this.view.type == 'grid' && (this.view.init == 'fromRange' || this.view.init == 'fromAltInstance')){
     this.view.gridType = this.cache.params.sheet.data[0].gridtype;
@@ -484,12 +35,15 @@ function View(p){
   // for (var j in this.view){Logger.log('this.view['+j+']: ' + this.view[j]);}
 
   this.model = p.model;
-  this.model.sheet = constructSheet(this.model.class,  this.model.instance);
+  this.model.sheet = new Sheet(this.model.class,  this.model.instance);
 
   if (this.view.init =='fromRel'){this.rel = p.rel;}
   if (this.view.init == 'fromLastWeek'){this.lw = p.lw;}
 
   initDates();
+  for (var d in this.dates){
+    Logger.log('this.dates['+d+']: ' + this.dates[d]);
+  }
   initRefs(); 
 
   if (this.view.type == 'grid'){refreshRowMap(getRMFromRange);}    
@@ -517,7 +71,7 @@ function View(p){
     // Logger.log('range: ' + range);
     this.view.sheet.clearRange();
     this.view.sheet.setRange(range);
-    this.view.sheet = constructSheet(this.view.class, this.view.instance);
+    this.view.sheet = new Sheet(this.view.class, this.view.instance);
     if (this.view.type == 'grid' && this.gridMap !== undefined) {
       refreshRowMap(getRMFromGridMap);
       refreshCellMap();
@@ -597,7 +151,8 @@ function View(p){
           }        
         }
       }
-      this.model.sheet = constructSheet(this.view.sheet.class, this.view.sheet.instance);//refresh view object's copy of model to reflect changes just written to it
+      Logger.log('refreshing sheet');
+      this.model.sheet = new Sheet(this.model.class, this.model.instance);//refresh view object's copy of model to reflect changes just written to it
       toast('Updated '+ this.model.class +' model!');
       Logger.log('Finished running '+ this.view.class +'.writeToModel()!')
       return this;      
@@ -613,7 +168,7 @@ function View(p){
   }
 
   this.writeNewRecordToModel = function(record, i){
-    // Logger.log('running .writeNewRecordToModel()');
+    Logger.log('running .writeNewRecordToModel()');
     // for (var j in record){
     //   Logger.log ('record['+j+']: ' + record[j]);
     // }
@@ -635,62 +190,27 @@ function View(p){
 
   this.refreshViews = function(instances){
     Logger.log('Running .refreshViews()!');
-    Logger.log('this.p: ' + this.p);
-    for (var j in this.p){
-      Logger.log('this.p['+j+']: ' + this.p[j]);
-    }
+    // Logger.log('this.p: ' + this.p);
+    // for (var j in this.p){
+    //   Logger.log('this.p['+j+']: ' + this.p[j]);
+    // }
     for (var i = 0; i < instances.length; i++) {
       var p = this.p,//retrieve core paramaters for view class from this view instance's paramaters 
         p2 = getParamsFromAltInstance(this.view.class, instances[i]);//retrieve paramaters for view instance to be refreshed
-
-      p.refs[0].names = p2.ref0Names;//modify core params according to values stored for alt instance
-      p.refs[1].names = p2.ref1Names;
-      p.dates = {start: p2.start, end: p2.end};
-
+      if (!self.newRecs){//modify core params according to values stored for alt instance
+        p.refs[0].names = p2.ref0Names;
+        p.refs[1].names = p2.ref1Names;
+        p.dates = {start: p2.start, end: p2.end};        
+      }
       p.view.init = 'fromAltInstance';//add params specifying initialization from view (and view instance)
       p.view.instance = instances[i];
-     
       var altView = new View(p);//construct view object for other view instance
       altView.writeToSelf();//call .writeToSelf() to refresh the view instance
-      // toast('Updated ' + this.view.class + ' ' + instances[i] + ' view!');
     }
     toast('Updated ' + this.view.class + ' views!');
     Logger.log('Finished running .refreshViews()!');
     return this;
   };
-
-  // this.writeFromRel = function (){
-  //   Logger.log('Running ' + this.view.class + '.writeFromRel()');
-  //   var rel = this.rel.view;
-  //   for (var i = 0; i < this.rel.view.recordList.length; i++) {//loop through foregin record list
-  //     var relRec = this.rel.view.recordList[i],
-  //       // relid = relRec[i].id,
-  //       // relJoin = this.rel.join,
-  //       // viewJoin = this.rel.view.rel.join,
-  //       viewid = relRec[this.rel.view.rel.join];
-  //     if (viewid !== '' && viewid !== undefined){
-  //       var viewRec = this.getRecordFromId(viewid),
-  //         viewJoin = viewRec[this.rel.join],
-  //         relJoin = relRec[this.rel.view.rel.join];
-  //       if(relRec[this.rel.view.refs[1].idKey] === undefined || relRec[this.rel.view.refs[1].idKey] == ''){
-  //         viewRec[viewJoin] = '';
-  //         relRec[relJoin] = '';
-  //       }
-  //       if (this.rel.view.recordList)
-  //       for (var j = 0; j < this.rel.vols.length; j++) {//loop through rel volatiles
-  //         var vol = this.rel.vols[j];
-  //         if (this.getRecordFromId(viewid)[vol] !== this.rel.view.recordList[i][vol]){//match on join id & compare vol values between rels, write from rel if values don't match
-  //           this.model.sheet.updateCell(this.model.sheet.getRowNum(viewid), this.model.sheet.getColNum(vol), this.rel.view.recordList[i][vol]);
-  //         }
-  //       }
-  //     }        
-  //   }
-  //   this.writeToSelf();
-  //   this.model.sheet = constructSheet(this.view.sheet.class, this.view.sheet.instance);//refresh view object's copy of model to reflect changes just written to it
-  //   toast('Updated ' + this.view.class + ' model.');//alert user
-  //   Logger.log('Finished running ' + this.view.class + '.writeFromRel()');
-  //   return this;
-  // };
 
   this.writeToRel = function(){
     Logger.log('Running ' + this.view.class + '.writeToRel()');
@@ -703,14 +223,14 @@ function View(p){
           relRec = this.rel.view.getRecordFromId(relid);
         for (var j = 0; j < this.rel.vols.length; j++) {//overwrite rel values with volatile view values
           var vol = this.rel.vols[j];
-          Logger.log('this.recordList[i]['+vol+']: ' + this.recordList[i][vol]);
+          Logger.log('this.recordList['+i+']['+vol+']: ' + this.recordList[i][vol]);
           Logger.log('relRec['+vol+']: ' + relRec[vol]);
           if (this.recordList[i][vol] !== relRec[vol]){//match records on join id & overwrite rel records that don't match view records
             if (this.view.class == 'schedule' && this.recordList[i][vol] == 'unassigned'){
               var val = 'available';
             } else if (this.view.class == 'availability' && (this.recordList[i][vol] == 'available' || this.recordList[i][vol] == 'not available')){
               var val = 'unassigned';
-            } else if (this.recordList[i][vol] === undefined){
+            } else if (this.recordList[i][vol] === undefined || this.recordList[i][vol] === ''){
               var val = '';
             } else {
               var val = this.recordList[i][vol];
@@ -719,15 +239,19 @@ function View(p){
           }
         } 
         if (this.recordList[i][this.refs[1].idKey] === undefined || this.recordList[i][this.refs[1].idKey] === ''){ //delete joins if ref1 vals are null (ie if references to the entity joining the records has been deleted)
+          // Logger.log('deleting join for record '+ this.recordList[i].id);
           relRec[relJoin] = '';//delete join from rel RL
           this.rel.view.model.sheet.updateCell(this.rel.view.model.sheet.getRowNum(relid), this.rel.view.model.sheet.getColNum(relJoin), '');//delete join from rel model
+          relRec[this.refs[0].idKey] = '';//delete joined ref1id from rel RL
+          // Logger.log('relid row: ' + this.rel.view.model.sheet.getRowNum(relid));
+          // Logger.log('rel ref1 row: ' + this.rel.view.model.sheet.getColNum(this.refs[0].idKey));
+          this.rel.view.model.sheet.updateCell(this.rel.view.model.sheet.getRowNum(relid), this.rel.view.model.sheet.getColNum(this.refs[0].idKey), '');//delete joined ref1id from rel RL
           this.recordList[i][viewJoin] = '';//delete join from view RL
-          // this.model.sheet.updateCell(this.model.sheet.getRowNum(viewid), this.model.sheet.getColNum(viewJoin), '');//delete join from view model (unnecessary if writing to model immediately afterwards)
-          
+          this.model.sheet.updateCell(this.model.sheet.getRowNum(viewid), this.model.sheet.getColNum(viewJoin), '');//delete join from view model (unnecessary if writing to model immediately afterwards)
         }
       }
     }
-    this.rel.view.model.sheet = constructSheet(this.rel.view.view.sheet.class, this.rel.view.view.sheet.instance);//refresh rel object's copy of model to reflect edits
+    this.rel.view.model.sheet = new Sheet(this.rel.view.view.sheet.class, this.rel.view.view.sheet.instance);//refresh rel object's copy of model to reflect edits
     toast('Updated ' + this.rel.view.model.class + 'model!');
     Logger.log('Finished running ' + this.view.class + '.writeToRel()');
     return this;
@@ -978,7 +502,7 @@ function View(p){
     Logger.log('running cacheParams()!')
     // Logger.log('p.view.class: ' + p.view.class);
     // Logger.log('p.view.instance: ' + p.view.instance);
-    self.cache = {params:{class: p.view.class, instance: p.view.instance, sheet: constructSheet(p.view.class+'Params', p.view.instance)}};
+    self.cache = {params:{class: p.view.class, instance: p.view.instance, sheet: new Sheet(p.view.class+'Params', p.view.instance)}};
     var range = [[p.refs[0].names, p.refs[1].names, p.dates.start.setToMidnight(), p.dates.end.setToMidnight()]];
     if (p.view.instance == 'grid'){range[0].push(p.view.gridType);}
 
@@ -989,7 +513,7 @@ function View(p){
 
   function getParamsFromAltInstance(class, instance){
     Logger.log('running getParamsFromAltInstance()!');
-    var params = constructSheet(class+'Params', instance).data[0];
+    var params = new Sheet(class+'Params', instance).data[0];
     // for (var j in params){
     //   Logger.log('params['+j+']: ' + params[j])
     // }
@@ -1006,7 +530,7 @@ function View(p){
     var range = getRange();
     self.cache.rowmap.sheet.clearRange();
     self.cache.rowmap.sheet.setRange(range);
-    self.cache.rowmap.sheet = constructSheet(self.view.class+'GridMaps', 'rowmap');//refresh object mapping of sheet to reflect new range values
+    self.cache.rowmap.sheet = new Sheet(self.view.class+'GridMaps', 'rowmap');//refresh object mapping of sheet to reflect new range values
     return this;
   };
 
@@ -1191,25 +715,16 @@ function View(p){
   //** ^^^ UTILITY FUNCTIONS ^^^ **//
 
   //** vvv INITIALIZE DATES vvv **//
+
   function initDates(){
-    switch (self.view.init){
-      case 'fromUi':
-        initDatesFromParams();
-        break;
-      case 'fromAltInstance':
-        initDatesFromParams();
-        break;
-      case 'fromRange':
-        initDatesFromCache();
-        break;
-      case 'fromRel':
-        initDatesFromRel();
-        break;
-      case 'fromLastWeek':
-        initDatesFromParams();
-        break;
+    if (self.view.init === 'fromUi' || self.view.init === 'fromAltInstance' || self.view.init === 'fromLastWeek'){
+      initDatesFromParams();
+    } else if(self.view.init === 'fromRel'){
+      initDatesFromRel();
+    } else if(self.view.init === 'fromRange'){  
+      self.newRecs ? initDatesFromParams() : initDatesFromCache();
     }
-  }
+  };
 
   function initDatesFromParams(){
     self.dates = {
@@ -1252,7 +767,7 @@ function View(p){
         self.refs[i] = {
           class: p.refs[i].class,
           instance: p.refs[i].instance,
-          sheet: constructSheet(p.refs[i].class, p.refs[i].instance),
+          sheet: new Sheet(p.refs[i].class, p.refs[i].instance),
           nameKey: p.refs[i].class.slice(0, -1),
           idKey: p.refs[i].class.slice(0, -1) + 'id'
         };
@@ -1423,11 +938,11 @@ function View(p){
         logNoRecordsError();
       }
       //LOG RECORD LIST (for testing only)
-      for (var i = 0; i < self.recordList.length; i++) {//log record list values
-        for (var j in self.recordList[i]){
-          Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
-        }
-      };
+      // for (var i = 0; i < self.recordList.length; i++) {//log record list values
+      //   for (var j in self.recordList[i]){
+      //     Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
+      //   }
+      // };
       // //LOG REF NAMES AND IDS
       // Logger.log('self.refs[0].names: ' + self.refs[0].names);
       // Logger.log('self.refs[0].ids: ' + self.refs[0].ids);
@@ -2008,9 +1523,9 @@ function View(p){
     };
 
     function initEmailElements(){
-      ee.notes = constructSheet('emailElements', 'notes');
-      ee.reminders = constructSheet('emailElements', 'reminders');
-      ee.users = constructSheet('emailElements', 'users');
+      ee.notes = new Sheet('emailElements', 'notes');
+      ee.reminders = new Sheet('emailElements', 'reminders');
+      ee.users = new Sheet('emailElements', 'users');
       ee.user = getRecordFromModelById(ee.users, user);
     };
 
@@ -2308,10 +1823,13 @@ function View(p){
 
 function initUi(serverHandler){//initiate UI dialog
 
+  Logger.log('running initUI('+serverHandler+')');
   //get sheet and sheet index to determine view to pass to click handler
   var ss = SpreadsheetApp.getActiveSpreadsheet().getName(),
-    ws = SpreadsheetApp.getActiveSheet().getName(),
-    sheet = constructSheet(ss, ws),
+    ws = SpreadsheetApp.getActiveSheet().getName();
+    Logger.log('ss: ' + ss);
+    Logger.log('ws: ' + ws);
+    sheet = new Sheet(ss, ws),
     ref1 = ss == 'schedule' ? 'riders' : 'restaurants',
   //retrieve view's current start and end dates from sheet data
     curStart = new Date().getWeekStart(),

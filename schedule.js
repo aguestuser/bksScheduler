@@ -129,9 +129,9 @@ function saveEdits(){
         schedule
           .writeToRel()
           .writeToModel()
-          .refreshViews(['grid', 'weekly', 'update']);  
+          .refreshViews(['grid'];//, 'weekly', 'update']);  
         availability
-          .refreshViews(['grid', 'weekly']); 
+          .refreshViews(['grid'];//, 'weekly']); 
       }
     }  
   }          
