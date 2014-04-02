@@ -1,21 +1,52 @@
-//*CONSTRUCT SHEET OBJECTS
+// Written by Austin Guest, 2014. 
+// This is free software licensed under the GNU General Public License. 
+// See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
 
+//*CONSTRUCT SHEET OBJECTS
 function Sheet (ss, ws){
   var self = this,
-    key = getKey(ss);
+    testingKeys = {
+      sheets: '0AkfgEUsp5QrAdFVXX0JMSjFIYWxXdlBZQ1NtRFVHVEE',
+      riders: '0AkfgEUsp5QrAdE9qTFg3bVlCTWY1WHc2WDJ4QUpFU2c',
+      restaurants: '0AkfgEUsp5QrAdFZ2RldES0l6ZDJCY0NTaFFtZFh6Znc',
+      shifts: '0AkfgEUsp5QrAdHJMNWRVNkl0MmpRWEgzUk01NWtYNFE',
+      availabilities: '0AkfgEUsp5QrAdGR2UXVyNGNlUGtFLUc0Qmd1MU10bFE',
+      schedule: '0AkfgEUsp5QrAdEl2SUxRZWllQjFscW5kS3hIcE1JY3c',
+      scheduleParams: '0AkfgEUsp5QrAdDZKY3VsZGJPOWR5TmE2Z2phbWZLM1E',
+      scheduleGridMaps: '0AkfgEUsp5QrAdEp2T0dmTGdncERNNEFXbUtNeDFENGc',
+      availability: '0AkfgEUsp5QrAdGMxekRkcUhKajBEX3Y5QmZtdFc0QkE',
+      availabilityParams: '0AkfgEUsp5QrAdHpQUUl2Y2dUcy1Ma3V5cGRMM1E5bUE',
+      availabilityGridMaps: '0AkfgEUsp5QrAdDVGMUQyY2w1bmdVX2VvdnM2dDhwY3c',
+      emailElements: '0AkfgEUsp5QrAdElMUmVsRjJiOFNFcFV2ZzRUOXhWZ2c'
+    },
+    liveKeys = {
+      sheets: '0AkfgEUsp5QrAdEI1T09ZUDFDY1Y2bE1xNzFyZTRnNnc',
+      riders: '0AkfgEUsp5QrAdEt2eU9PcWhKbGVoUzlOS2RkU2RxMEE',
+      restaurants: '0AkfgEUsp5QrAdFJyOW9RMjk5M2FNMXI4bmJBMzMwWFE',
+      shifts: '0AkfgEUsp5QrAdEdJc3BmMEt0TXFTdmVHY1cyWHdMTFE',
+      availabilities: '0AkfgEUsp5QrAdEdvSWQ0eVRMZmR1RXZRRW13LWY0ZEE',
+      schedule: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
+      scheduleParams: '0AkfgEUsp5QrAdHp6Q2dES0Z5Tm9YOGZsSWRnUEFuX0E',
+      scheduleGridMaps: '0AkfgEUsp5QrAdEE4eUhDT2RnNmlwRnQ0dkRsSHZlS3c',
+      availability: '0AkfgEUsp5QrAdG54d2VpakNXZEFsS05yRjByQmxwbmc',
+      availabilityParams: '0AkfgEUsp5QrAdHBqa2tkTXlwVnBoY0M5cmxrOUtRMVE',
+      availabilityGridMaps: '0AkfgEUsp5QrAdHloc1pSM0YtQjBxdjV2Qktrdzd4bHc',
+      emailElements: '0AkfgEUsp5QrAdDBqR1VRNVJzZ3RPTU5jNGNPUkJYY1E'
+    },
+    key = testingKeys[ss];
 
-  function getKey(ss){
-    //**vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    // var sheets = SpreadsheetApp.openById('0AkfgEUsp5QrAdEI1T09ZUDFDY1Y2bE1xNzFyZTRnNnc').getSheetByName('index'),//<<---LIVE edit this key to match key for join table containing ss names & keys for project
-    var sheets = SpreadsheetApp.openById('0AkfgEUsp5QrAdFVXX0JMSjFIYWxXdlBZQ1NtRFVHVEE').getSheetByName('index'),//<<---TESTING
-    //**^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-      keys = getRowsData(sheets, sheets.getRange(2, 1, sheets.getLastRow(), 2));
-    for (var i = 0; i < keys.length; i++) {
-      if (keys[i].ss == ss) {
-        return keys[i].key;
-      }
-    }
-  };
+  // function getKey(ss){
+  //   //**vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+  //   // var sheets = SpreadsheetApp.openById('0AkfgEUsp5QrAdEI1T09ZUDFDY1Y2bE1xNzFyZTRnNnc').getSheetByName('index'),//<<---LIVE edit this key to match key for join table containing ss names & keys for project
+  //   var sheets = SpreadsheetApp.openById('0AkfgEUsp5QrAdFVXX0JMSjFIYWxXdlBZQ1NtRFVHVEE').getSheetByName('index'),//<<---TESTING
+  //   //**^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //     keys = getRowsData(sheets, sheets.getRange(2, 1, sheets.getLastRow(), 2));
+  //   for (var i = 0; i < keys.length; i++) {
+  //     if (keys[i].ss == ss) {
+  //       return keys[i].key;
+  //     }
+  //   }
+  // };
 
   //ATTRIBUTES
   this.g = SpreadsheetApp.openById(key).getSheetByName(ws);//g. accesses google spreadsheetApp's Sheet object for the sheet

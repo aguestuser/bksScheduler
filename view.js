@@ -1,6 +1,6 @@
-/**************************************************
-COPYRIGHT 2014 AUSTIN GUEST -- ALL RIGHTS RESERVED
-**************************************************/
+// Written by Austin Guest, 2014. 
+// This is free software licensed under the GNU General Public License. 
+// See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
 
 //*** VIEW CONSTRUCTOR FUNCTION ***//
 
@@ -214,48 +214,74 @@ function View(p){
 
   this.writeToRel = function(){
     Logger.log('Running ' + this.view.class + '.writeToRel()');
-    var viewJoin = this.rel.join,
-      relJoin = this.rel.view.rel.join;
+    var viewJoin = this.rel.join, relJoin = this.rel.view.rel.join;
     for (var i = 0; i < this.recordList.length; i++) {//loop through recordlist
       if (this.recordList[i][viewJoin] !== undefined && this.recordList[i][viewJoin] !== ''){//proceed only for records joined to rel records
-        var viewid = this.recordList[i].id; 
+        var viewRec = this.recordList[i], 
+          viewid = viewRec.id, 
+          ref1id = this.recordList[i][this.refs[1].idKey],
           relid = this.recordList[i][viewJoin],
-          relRec = this.rel.view.getRecordFromId(relid);
-        for (var j = 0; j < this.rel.vols.length; j++) {//overwrite rel values with volatile view values
-          var vol = this.rel.vols[j];
-          Logger.log('this.recordList['+i+']['+vol+']: ' + this.recordList[i][vol]);
-          Logger.log('relRec['+vol+']: ' + relRec[vol]);
-          if (this.recordList[i][vol] !== relRec[vol]){//match records on join id & overwrite rel records that don't match view records
-            if (this.view.class == 'schedule' && this.recordList[i][vol] == 'unassigned'){
-              var val = 'available';
-            } else if (this.view.class == 'availability' && (this.recordList[i][vol] == 'available' || this.recordList[i][vol] == 'not available')){
-              var val = 'unassigned';
-            } else if (this.recordList[i][vol] === undefined || this.recordList[i][vol] === ''){
-              var val = '';
-            } else {
-              var val = this.recordList[i][vol];
-            }
-            this.rel.view.model.sheet.updateCell(this.rel.view.model.sheet.getRowNum(relid), this.rel.view.model.sheet.getColNum(vol), val);
-          }
-        } 
-        if (this.recordList[i][this.refs[1].idKey] === undefined || this.recordList[i][this.refs[1].idKey] === ''){ //delete joins if ref1 vals are null (ie if references to the entity joining the records has been deleted)
-          // Logger.log('deleting join for record '+ this.recordList[i].id);
-          relRec[relJoin] = '';//delete join from rel RL
-          this.rel.view.model.sheet.updateCell(this.rel.view.model.sheet.getRowNum(relid), this.rel.view.model.sheet.getColNum(relJoin), '');//delete join from rel model
-          relRec[this.refs[0].idKey] = '';//delete joined ref1id from rel RL
-          // Logger.log('relid row: ' + this.rel.view.model.sheet.getRowNum(relid));
-          // Logger.log('rel ref1 row: ' + this.rel.view.model.sheet.getColNum(this.refs[0].idKey));
-          this.rel.view.model.sheet.updateCell(this.rel.view.model.sheet.getRowNum(relid), this.rel.view.model.sheet.getColNum(this.refs[0].idKey), '');//delete joined ref1id from rel RL
-          this.recordList[i][viewJoin] = '';//delete join from view RL
-          this.model.sheet.updateCell(this.model.sheet.getRowNum(viewid), this.model.sheet.getColNum(viewJoin), '');//delete join from view model (unnecessary if writing to model immediately afterwards)
+          relRec = this.rel.view.getRecordFromId(relid);  
+        if (ref1id === undefined || ref1id === ''){ //delete joins if ref1 vals are null (ie if references to the entity joining the records has been deleted)
+          deleteJoin(this.rel.view.model, relRec, relid, relJoin, 'rel');
+          deleteJoin(this.model, viewRec, viewid, viewJoin, 'view');
+        } else {
+          updateJoin(viewid, relJoin, ref1id);
+          updateJoinedRec(viewRec, relRec, relid, this.rel.vols);
         }
       }
     }
     this.rel.view.model.sheet = new Sheet(this.rel.view.view.sheet.class, this.rel.view.view.sheet.instance);//refresh rel object's copy of model to reflect edits
-    toast('Updated ' + this.rel.view.model.class + 'model!');
+    toast('Updated ' + this.rel.view.model.class + ' model!');
     Logger.log('Finished running ' + this.view.class + '.writeToRel()');
     return this;
+  };
+
+  function updateJoinedRec(viewRec, relRec, id, vols){
+    Logger.log('running updatJoinedRec()')
+    var model = self.rel.view.model;
+    for (var i = 0; i < vols.length; i++) {//overwrite rel values with volatile view values
+      if (viewRec[vols[i]] !== relRec[vols[i]]){//match records on join id & overwrite rel records that don't match view records
+        var val = viewRec[vols[i]] === undefined || viewRec[vols[i]] === '' ? '' : viewRec[vols[i]];
+        model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum(vols[i]), val);
+      }
+    }
+  };
+
+  function deleteJoin(model, rec, id, join, type){
+    Logger.log('running deleteJoin('+model+', ' + rec + ', ' + id + ', ' + ', ' +join +', ' +type);
+    rec[join] = ''; // delete join from record list
+    model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum(join), '');//delete join from model
+    if (type === 'rel'){
+      rec[self.refs[0].idKey] = '';//delete joined ref1id from rel record list (reference is to ref[0] because the view's ref0 correspondes to the rel's ref1)
+      model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum(self.refs[0].idKey), '');//delete joined ref1id from rel model
+      var status = self.rel.view.view.class === 'schedule' ? 'unassigned' : 'available';//set rel status attribute to defaul value
+      model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum('status'), status);
+    }
+  };
+
+  function updateJoin(joinid, join, ref1id){//delete joins from rel records that have been joined to new view records
+    var otherJoins = getOtherJoins(joinid, join, ref1id);
+    if (otherJoins.length > 0){
+      for (var i = 0; i < otherJoins.length; i++) {
+        var relRec = self.rel.view.getRecordFromId(otherJoins[i]);
+        deleteJoin(self.rel.view.model, relRec, otherJoins[i], join, 'rel');
+      }
+    }
   };  
+
+  function getOtherJoins(joinid, join, ref1id){//retrieve rel records joined to same view record but with different refids associated w/ the record
+    var joins = [];
+    for (var i = 0; i < self.recordList.length; i++) {
+      if (self.recordList[i][join] === joinid && self.recordList[i][self.refs[1].idKey] !== ref1id){
+        joins.push(self.recordList[i].id);
+      }
+    }
+    return joins;
+  };
+
+
+
 
   this.getConflictsWith = function(View){
     Logger.log('running .getConflictsWith()');
@@ -1816,88 +1842,3 @@ function View(p){
   //* ^^^ UPDATE CALENDAR ^^^ *//
 
 };
-
-
-
-//*** vvv UI APP vvv ***//
-
-function initUi(serverHandler){//initiate UI dialog
-
-  Logger.log('running initUI('+serverHandler+')');
-  //get sheet and sheet index to determine view to pass to click handler
-  var ss = SpreadsheetApp.getActiveSpreadsheet().getName(),
-    ws = SpreadsheetApp.getActiveSheet().getName();
-    Logger.log('ss: ' + ss);
-    Logger.log('ws: ' + ws);
-    sheet = new Sheet(ss, ws),
-    ref1 = ss == 'schedule' ? 'riders' : 'restaurants',
-  //retrieve view's current start and end dates from sheet data
-    curStart = new Date().getWeekStart(),
-    curEnd = curStart.incrementDate(6);
-    
-  //construct ui app
-  var titles = {
-      refreshView: 'Refresh ' + ss + ' view',
-      cloneLastWeek: 'Clone last week\'s '+ ss,
-      createRecords: 'Create new '+ ss +' records:'
-    } 
-    app = UiApp.createApplication().setTitle(titles[serverHandler]).setWidth(200).setHeight(240),
-    //construct panel to hold user input elements
-    panel = app.createVerticalPanel(),
-    //construct ui elements to retrive and store paramaters to pass to updateShiftsView()
-    class = app.createHidden('class', ss).setName('class').setId('class'),
-    instance = app.createHidden('instance', ws).setName('instance').setId('instance'),//store sheet name as 'view'
-    startLabel = app.createLabel('Start Date').setId('startLabel'),
-    start = app.createDateBox().setName('start').setId('start').setValue(curStart),
-    endLabel = app.createLabel('End Date').setId('endLabel'),
-    end = app.createDateBox().setName('end').setId('end').setValue(curEnd),
-    //define callback
-    submitHandler = app.createServerHandler(serverHandler)
-      .setId('submitHandler')
-      .addCallbackElement(class)
-      .addCallbackElement(instance)
-      .addCallbackElement(start)
-      .addCallbackElement(end);
-  //for lookup view, retrieve restaurants and riders from user input 
-  if (ws == 'lookup'){
-    var restaurantsLabel = app.createLabel('Restaurants').setId('restaurantsLabel'),    
-      restaurants = app.createTextBox().setName('restaurants').setId('restaurants').setValue('all'),
-      ridersLabel = app.createLabel('Riders').setId('ridersLabel'), 
-      riders = app.createTextBox().setName('riders').setId('riders').setValue('all'); 
-
-  } else { //for all other views, store 'all' restaurants as hidden paramater 
-    var restaurants = app.createHidden('restaurants', 'all').setName('restaurants').setId('restaurants'),
-      riders = app.createHidden('riders', 'all').setName('riders').setId('riders');
-  }
-  submitHandler
-    .addCallbackElement(restaurants)
-    .addCallbackElement(riders);
-  
-  if (ws == 'grid'){
-    var gridTypeLabel = app.createLabel('Grid Type').setId('gridTypeLabel'),
-      gridType = app.createListBox().setName('gridType').setId('gridType');
-    gridType.setVisibleItemCount(2);
-    gridType.addItem('refs');
-    gridType.addItem('times');
-    gridType.setSelectedIndex(0);
-  } else {
-    gridType = app.createHidden('gridType', 'refs').setName('refs').setId('refs');
-  }
-  submitHandler.addCallbackElement(gridType);
-
-  //define button to trigger callback
-  var submit = app.createButton('Submit!').addClickHandler(submitHandler);
-  
-  //add app elements to each other (funky order here?)
-  panel.add(startLabel).add(start).add(endLabel).add(end);
-  if (ws == 'lookup'){panel.add(restaurantsLabel).add(restaurants).add(ridersLabel).add(riders);}
-  if (ws == 'grid'){panel.add(gridTypeLabel).add(gridType);} 
-
-  panel.add(submit);
-  app.add(panel);
-
-  //  sheet.g.getParent().show(app);
-  SpreadsheetApp.getActiveSpreadsheet().show(app);
-};
-
-//** ^^ UI APP ^^ **//

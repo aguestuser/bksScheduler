@@ -1,6 +1,89 @@
-/**************************************************
-COPYRIGHT 2014 AUSTIN GUEST -- ALL RIGHTS RESERVED
-**************************************************/
+// Written by Austin Guest, 2014. 
+// This is free software licensed under the GNU General Public License. 
+// See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
+
+//*** vvv UI APP vvv ***//
+
+function initUi(serverHandler){//initiate UI dialog
+
+  Logger.log('running initUI('+serverHandler+')');
+  //get sheet and sheet index to determine view to pass to click handler
+  var ss = SpreadsheetApp.getActiveSpreadsheet().getName(),
+    ws = SpreadsheetApp.getActiveSheet().getName();
+    Logger.log('ss: ' + ss);
+    Logger.log('ws: ' + ws);
+    sheet = new Sheet(ss, ws),
+    ref1 = ss == 'schedule' ? 'riders' : 'restaurants',
+  //retrieve view's current start and end dates from sheet data
+    curStart = new Date().getWeekStart(),
+    curEnd = curStart.incrementDate(6);
+    
+  //construct ui app
+  var titles = {
+      refreshView: 'Refresh ' + ss + ' view',
+      cloneLastWeek: 'Clone last week\'s '+ ss,
+      createRecords: 'Create new '+ ss +' records:'
+    } 
+    app = UiApp.createApplication().setTitle(titles[serverHandler]).setWidth(200).setHeight(240),
+    //construct panel to hold user input elements
+    panel = app.createVerticalPanel(),
+    //construct ui elements to retrive and store paramaters to pass to updateShiftsView()
+    class = app.createHidden('class', ss).setName('class').setId('class'),
+    instance = app.createHidden('instance', ws).setName('instance').setId('instance'),//store sheet name as 'view'
+    startLabel = app.createLabel('Start Date').setId('startLabel'),
+    start = app.createDateBox().setName('start').setId('start').setValue(curStart),
+    endLabel = app.createLabel('End Date').setId('endLabel'),
+    end = app.createDateBox().setName('end').setId('end').setValue(curEnd),
+    //define callback
+    submitHandler = app.createServerHandler(serverHandler)
+      .setId('submitHandler')
+      .addCallbackElement(class)
+      .addCallbackElement(instance)
+      .addCallbackElement(start)
+      .addCallbackElement(end);
+  //for lookup view, retrieve restaurants and riders from user input 
+  if (ws == 'lookup'){
+    var restaurantsLabel = app.createLabel('Restaurants').setId('restaurantsLabel'),    
+      restaurants = app.createTextBox().setName('restaurants').setId('restaurants').setValue('all'),
+      ridersLabel = app.createLabel('Riders').setId('ridersLabel'), 
+      riders = app.createTextBox().setName('riders').setId('riders').setValue('all'); 
+
+  } else { //for all other views, store 'all' restaurants as hidden paramater 
+    var restaurants = app.createHidden('restaurants', 'all').setName('restaurants').setId('restaurants'),
+      riders = app.createHidden('riders', 'all').setName('riders').setId('riders');
+  }
+  submitHandler
+    .addCallbackElement(restaurants)
+    .addCallbackElement(riders);
+  
+  if (ws == 'grid'){
+    var gridTypeLabel = app.createLabel('Grid Type').setId('gridTypeLabel'),
+      gridType = app.createListBox().setName('gridType').setId('gridType');
+    gridType.setVisibleItemCount(2);
+    gridType.addItem('refs');
+    gridType.addItem('times');
+    gridType.setSelectedIndex(0);
+  } else {
+    gridType = app.createHidden('gridType', 'refs').setName('refs').setId('refs');
+  }
+  submitHandler.addCallbackElement(gridType);
+
+  //define button to trigger callback
+  var submit = app.createButton('Submit!').addClickHandler(submitHandler);
+  
+  //add app elements to each other (funky order here?)
+  panel.add(startLabel).add(start).add(endLabel).add(end);
+  if (ws == 'lookup'){panel.add(restaurantsLabel).add(restaurants).add(ridersLabel).add(riders);}
+  if (ws == 'grid'){panel.add(gridTypeLabel).add(gridType);} 
+
+  panel.add(submit);
+  app.add(panel);
+
+  //  sheet.g.getParent().show(app);
+  SpreadsheetApp.getActiveSpreadsheet().show(app);
+};
+
+//** ^^ UI APP ^^ **//
 
 function createMenus() {//creates event triggers for calling functions
     var menuEntries = [
