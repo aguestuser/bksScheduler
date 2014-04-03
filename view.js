@@ -306,11 +306,11 @@ function View(p){
             Logger.log('rel join id: ' + relRl[refId][self.rel.view.rel.join]);
             Logger.log ('view join id:' + viewRl[refId].id);
             if (//match on records with status either not available or joined to a different record
-              relRl[refId][j].status == 'not available' ||
-              (
-                (relRl[refId][j][self.rel.view.rel.join] !== undefined && relRl[refId][j][self.rel.view.rel.join] !== '' && viewRl[refId][i][self.rel.join] !== undefined && viewRl[refId][i][self.rel.join] !== '')&&
-                (relRl[refId][j][self.rel.view.rel.join] !== viewRl[refId][i].id)// || relRl[refId][j].id !== viewRl[refId][i][self.rel.join]
-              )
+              relRl[refId][j].status == 'not available' //||
+              // (
+              //   (relRl[refId][j][self.rel.view.rel.join] !== undefined && relRl[refId][j][self.rel.view.rel.join] !== '' && viewRl[refId][i][self.rel.join] !== undefined && viewRl[refId][i][self.rel.join] !== '')&&
+              //   (relRl[refId][j][self.rel.view.rel.join] !== viewRl[refId][i].id)// || relRl[refId][j].id !== viewRl[refId][i][self.rel.join]
+              // )
             ){//add records matching above (status & join) criteria to conflicts array, not matching to noConflicts
               self.conflicts.push({viewid: viewRl[refId][i].id, relid: relRl[refId][j].id});
             } else {
@@ -1024,12 +1024,13 @@ function View(p){
                 var strs = self.view.sheet.data[i][j].split(', ');//create array of strings from cell contents
                 Logger.log('strs: ' + strs);
                 for (var k = 0; k < strs.length; k++) {//loop through strings
+                  Logger.log('self.view.gridType: ' + self.view.gridType);
                   if (self.view.gridType == 'times'){
                     var volatileData = getVDFromTimeStr(strs[k], col,'', ref0id);//get time attributes from time strings
                     self.recordList.push(getNewRecFromTimeVD(volatileData, ref0id, k));//combine time attributes with default ref record values and push to recordList
                   } else {
                     var volatileData = getVDFromRefStr(strs[k], col, '');//get ref attributes from ref strings
-                    self.recordList.push(getNewRecFromRefVD(volatileData, ref0id, col));//combine ref attributes with default time record values and push to recordList
+                    self.recordList.push(getNewRecFromRefVD(volatileData, ref0id, col, k));//combine ref attributes with default time record values and push to recordList
                   }
                 }
               }             
@@ -1228,7 +1229,7 @@ function View(p){
     }
   };
 
-  function getNewRecFromRefVD(vd, ref0id, col){
+  function getNewRecFromRefVD(vd, ref0id, col, index){
     // Logger.log('running getNewRecFromRefVD('+vd+', '+col+')');
     vd[self.refs[0].idKey] = ref0id;
     if (self.view.class == 'availability'){
@@ -1522,7 +1523,7 @@ function View(p){
 
     function initEmailRecords(){
       Logger.log('running initEmailRecords()');
-      Logger.log('typeof refId: ' + typeof refId);
+      // Logger.log('typeof refId: ' + typeof refId);
       for (var refId in self.recordsSortedByRef[1]){
         for (var i = 0; i < self.recordsSortedByRef[1][refId].length; i++){
           if (self.recordsSortedByRef[1][refId][i].status == 'proposed'){

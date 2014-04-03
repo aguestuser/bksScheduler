@@ -175,6 +175,7 @@ function createRecords(e){
       newRecs: true
     };
 
+  Logger.log('p.gridType: ' + p.gridType);
   schedule = new View(sp);
   if (!schedule.hasErrors()){
     schedule.writeToModel().refreshViews(['grid']);
@@ -212,9 +213,9 @@ function saveEdits(){
         schedule
           .writeToRel()
           .writeToModel()
-          .refreshViews(['grid'];//, 'weekly', 'update']);  
+          .refreshViews(['grid', 'weekly', 'update']);  
         availability
-          .refreshViews(['grid'];//, 'weekly']); 
+          .refreshViews(['grid', 'weekly']); 
       }
     }  
   }          
