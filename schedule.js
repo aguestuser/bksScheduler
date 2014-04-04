@@ -175,7 +175,7 @@ function createRecords(e){
       newRecs: true
     };
 
-  Logger.log('p.gridType: ' + p.gridType);
+  // Logger.log('p.gridType: ' + p.gridType);
   schedule = new View(sp);
   if (!schedule.hasErrors()){
     schedule.writeToModel().refreshViews(['grid']);

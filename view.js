@@ -32,7 +32,7 @@ function View(p){
   }
 
   //LOG VIEW PARAMS (for testing) 
-  // for (var j in this.view){Logger.log('this.view['+j+']: ' + this.view[j]);}
+  for (var j in this.view){Logger.log('this.view['+j+']: ' + this.view[j]);}
 
   this.model = p.model;
   this.model.sheet = new Sheet(this.model.class,  this.model.instance);
@@ -41,9 +41,9 @@ function View(p){
   if (this.view.init == 'fromLastWeek'){this.lw = p.lw;}
 
   initDates();
-  for (var d in this.dates){
-    Logger.log('this.dates['+d+']: ' + this.dates[d]);
-  }
+  // for (var d in this.dates){
+  //   Logger.log('this.dates['+d+']: ' + this.dates[d]);
+  // }
   initRefs(); 
 
   if (this.view.type == 'grid'){refreshRowMap(getRMFromRange);}    
@@ -68,7 +68,7 @@ function View(p){
     } else {
       range = this.range;
     }
-    // Logger.log('range: ' + range);
+    Logger.log('range: ' + range);
     this.view.sheet.clearRange();
     this.view.sheet.setRange(range);
     this.view.sheet = new Sheet(this.view.class, this.view.instance);
@@ -238,7 +238,7 @@ function View(p){
   };
 
   function updateJoinedRec(viewRec, relRec, id, vols){
-    Logger.log('running updatJoinedRec()')
+    Logger.log('running updatJoinedRec('+viewRec+', '+relRec+', '+id+', '+vols+')');
     var model = self.rel.view.model;
     for (var i = 0; i < vols.length; i++) {//overwrite rel values with volatile view values
       if (viewRec[vols[i]] !== relRec[vols[i]]){//match records on join id & overwrite rel records that don't match view records
@@ -261,7 +261,7 @@ function View(p){
   };
 
   function updateJoin(joinid, join, ref1id){//delete joins from rel records that have been joined to new view records
-    var otherJoins = getOtherJoins(joinid, join, ref1id);
+    var otherJoins = getOtherJoins(self.rel.view.recordList, joinid, join, ref1id);
     if (otherJoins.length > 0){
       for (var i = 0; i < otherJoins.length; i++) {
         var relRec = self.rel.view.getRecordFromId(otherJoins[i]);
@@ -270,13 +270,15 @@ function View(p){
     }
   };  
 
-  function getOtherJoins(joinid, join, ref1id){//retrieve rel records joined to same view record but with different refids associated w/ the record
+  function getOtherJoins(recs, joinid, join, ref1id){//retrieve rel records joined to same view record but with different refids associated w/ the record
+    Logger.log('running getOtherJoins('+joinid+', '+join+', '+ref1id+')');
     var joins = [];
-    for (var i = 0; i < self.recordList.length; i++) {
-      if (self.recordList[i][join] === joinid && self.recordList[i][self.refs[1].idKey] !== ref1id){
-        joins.push(self.recordList[i].id);
+    for (var i = 0; i < recs.length; i++) {
+      if (recs[i][join] === joinid && recs[i][self.refs[1].idKey] !== ref1id){
+        joins.push(recs[i].id);
       }
     }
+    Logger.log('found joins: ' + joins);
     return joins;
   };
 
@@ -303,8 +305,8 @@ function View(p){
         // if (isDoubleBooked(viewRl[refId][i], viewRl[refId])){self.doubleBookings.push(viewRl[refId][i].id);}
         for (var j = 0; j < relRl[refId].length; j++){//loop through rel records associated with ref
           if (matchOnDayAndPeriod(viewRl[refId][i], relRl[refId][j])) {//match on day and period
-            Logger.log('rel join id: ' + relRl[refId][self.rel.view.rel.join]);
-            Logger.log ('view join id:' + viewRl[refId].id);
+            // Logger.log('rel join id: ' + relRl[refId][self.rel.view.rel.join]);
+            // Logger.log ('view join id:' + viewRl[refId].id);
             if (//match on records with status either not available or joined to a different record
               relRl[refId][j].status == 'not available' //||
               // (
@@ -322,7 +324,12 @@ function View(p){
     }
 
     function matchOnDayAndPeriod(rec1, rec2){
-      if (rec1.start.getDate() == rec2.start.getDate() && (rec1.am == rec2.am || rec1.pm == rec2.pm)){
+      if (
+          rec1.start.getDate() == rec2.start.getDate() && 
+          rec1.start.getMonth() == rec2.start.getMonth() &&
+          rec1.start.getYear() == rec2.start.getYear()&&
+          (rec1.am == rec2.am || rec1.pm == rec2.pm)
+        ){
         return true;
       } else {
         return false;
@@ -344,11 +351,11 @@ function View(p){
     //   for (var j in self.conflicts[i])
     //     Logger.log('self.conflicts['+i+']['+j+']: ' + self.conflicts[i][j]);
     // }
-    // //LOG NOCONFLICTS (for testing)
-    // for (var i = 0; i < self.noConflicts.length; i++) {
-    //   for (var j in self.noConflicts[i])
-    //     Logger.log('self.noConflicts['+i+']['+j+']: ' + self.noConflicts[i][j]);
-    // }
+    //LOG NOCONFLICTS (for testing)
+    for (var i = 0; i < self.noConflicts.length; i++) {
+      for (var j in self.noConflicts[i])
+        Logger.log('self.noConflicts['+i+']['+j+']: ' + self.noConflicts[i][j]);
+    }
     // //LOG DOUBLE BOOKINGS (for testing)
     // for (var i = 0; i < self.doubleBookings.length; i++) {
     //   Logger.log('self.doubleBookings[i]: ' + self.doubleBookings[i]);
@@ -963,12 +970,12 @@ function View(p){
       } else if (self.recordList.length < 0) {
         logNoRecordsError();
       }
-      //LOG RECORD LIST (for testing only)
-      // for (var i = 0; i < self.recordList.length; i++) {//log record list values
-      //   for (var j in self.recordList[i]){
-      //     Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
-      //   }
-      // };
+      // LOG RECORD LIST (for testing only)
+      for (var i = 0; i < self.recordList.length; i++) {//log record list values
+        for (var j in self.recordList[i]){
+          Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
+        }
+      };
       // //LOG REF NAMES AND IDS
       // Logger.log('self.refs[0].names: ' + self.refs[0].names);
       // Logger.log('self.refs[0].ids: ' + self.refs[0].ids);
@@ -1405,6 +1412,7 @@ function View(p){
   function initRange(){
     Logger.log('Running initRange()!')
     if (self.errors.recordList === undefined){//only proceed if there were no errors retrieving record list
+      Logger.log('no recordList errors!');
       self.range = [];
       if (self.view.type == 'list'){
         initListRange();
@@ -1412,6 +1420,7 @@ function View(p){
         initGridRange();
       }      
     }
+    Logger.log('recordList errors!')
     Logger.log('Finished running initRange()!');
     // //LOG RANGE (for testing)
     // for (var i = 0; i < self.range.length; i++) {
@@ -1430,6 +1439,7 @@ function View(p){
   };
 
   function initListRangeCellVal(record, header){
+    Logger.log('running initListRangeCellVal('+record+', '+header+')')
     if (header in record){//if the data type in the record list matches the data type specified by the header, return the value without formatting
       return record[header] === undefined ? '' : record[header];
     } else if (isRef(header)){//if the header refers to a ref name, return the name corresponding to the ref id     
@@ -1444,6 +1454,7 @@ function View(p){
         end: record.end.getFormattedTime(),
         period: getPeriodFromAmPm(record.am, record.pm)
       }
+      Logger.log('headers['+header+']: ' + headers[header]);
       return headers[header];
     }
   };
@@ -1535,13 +1546,13 @@ function View(p){
       }
       Logger.log('Finished running initEmailRecords()');
       //LOG RECS (for testing)
-      for (var refId in er){
-        for (var i = 0; i < er[refId].length; i++) {
-          for (var j in er[refId][i]){
-            Logger.log('er['+refId+']['+i+']['+j+']: ' + er[refId][i][j]);
-          }
-        }
-      }
+      // for (var refId in er){
+      //   for (var i = 0; i < er[refId].length; i++) {
+      //     for (var j in er[refId][i]){
+      //       Logger.log('er['+refId+']['+i+']['+j+']: ' + er[refId][i][j]);
+      //     }
+      //   }
+      // }
       // //LOG REF NAMES & IDS (for testing)
       // Logger.log('self.refs[1].ids: ' + self.refs[1].ids);
       // Logger.log('self.refs[1].names: ' + self.refs[1].names);

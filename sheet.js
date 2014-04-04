@@ -1,5 +1,5 @@
 // Written by Austin Guest, 2014. 
-// This is free software licensed under the GNU General Public License. 
+// This is free software licensed under the GNU General Public License v3.0. 
 // See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
 
 //*CONSTRUCT SHEET OBJECTS
@@ -17,7 +17,9 @@ function Sheet (ss, ws){
       availability: '0AkfgEUsp5QrAdGMxekRkcUhKajBEX3Y5QmZtdFc0QkE',
       availabilityParams: '0AkfgEUsp5QrAdHpQUUl2Y2dUcy1Ma3V5cGRMM1E5bUE',
       availabilityGridMaps: '0AkfgEUsp5QrAdDVGMUQyY2w1bmdVX2VvdnM2dDhwY3c',
-      emailElements: '0AkfgEUsp5QrAdElMUmVsRjJiOFNFcFV2ZzRUOXhWZ2c'
+      emailElements: '0AkfgEUsp5QrAdElMUmVsRjJiOFNFcFV2ZzRUOXhWZ2c',
+      riderView: '0AkfgEUsp5QrAdHFXSmlyQXpRT0d2WlJHVDl3d3ZwLWc',
+      restaurantView: '0AkfgEUsp5QrAdEpwR0l0cUo1OHFrNFE1YVFpT0NmVnc'
     },
     liveKeys = {
       sheets: '0AkfgEUsp5QrAdEI1T09ZUDFDY1Y2bE1xNzFyZTRnNnc',
@@ -31,9 +33,12 @@ function Sheet (ss, ws){
       availability: '0AkfgEUsp5QrAdG54d2VpakNXZEFsS05yRjByQmxwbmc',
       availabilityParams: '0AkfgEUsp5QrAdHBqa2tkTXlwVnBoY0M5cmxrOUtRMVE',
       availabilityGridMaps: '0AkfgEUsp5QrAdHloc1pSM0YtQjBxdjV2Qktrdzd4bHc',
-      emailElements: '0AkfgEUsp5QrAdDBqR1VRNVJzZ3RPTU5jNGNPUkJYY1E'
+      emailElements: '0AkfgEUsp5QrAdDBqR1VRNVJzZ3RPTU5jNGNPUkJYY1E',
+      riderView: '0AkfgEUsp5QrAdENLcXVJbjN1SERaQ3Z3THh1THNuMVE',
+      restaurantView: '0AkfgEUsp5QrAdHNLSGF4QTNmeUNRc3NyeTBUOTMyRkE'
     },
-    key = testingKeys[ss];
+    // key = testingKeys[ss];
+    key = liveKeys[ss];
 
   // function getKey(ss){
   //   //**vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -102,15 +107,19 @@ function Sheet (ss, ws){
   };
 
   this.clearRange = function (){
-    this.g
-      .getRange(this.row.first, this.col.first, this.row.getNum(), this.col.getNum())
-      .clear({contentsOnly:true});
+    // if (this.data[this.headers[0]] !== undefined && this.data[this.headers[0]] !== ''){
+      this.g
+        .getRange(this.row.first, this.col.first, this.row.getNum(), this.col.getNum())
+        .clear({contentsOnly:true});      
+    // }
+    return this;
   };
 
   this.setRange = function (range){
     this.g
       .getRange(this.row.first, this.col.first, range.length, range[0].length)
       .setValues(range);
+    return this;
   };
 };
 
