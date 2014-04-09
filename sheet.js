@@ -1,5 +1,5 @@
 // Written by Austin Guest, 2014. 
-// This is free software licensed under the GNU General Public License v3.0. 
+// This is free software licensed under the GNU General Public License v3. 
 // See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
 
 //*CONSTRUCT SHEET OBJECTS

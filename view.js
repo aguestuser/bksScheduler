@@ -1,5 +1,5 @@
 // Written by Austin Guest, 2014. 
-// This is free software licensed under the GNU General Public License. 
+// This is free software licensed under the GNU General Public License v3. 
 // See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
 
 //*** VIEW CONSTRUCTOR FUNCTION ***//
@@ -357,8 +357,9 @@ function View(p){
           if (matchOnDayAndPeriod(viewRl[refId][i], relRl[refId][j])) {//match on day and period
             // //Logger.log('rel join id: ' + relRl[refId][self.rel.view.rel.join]);
             // //Logger.log ('view join id:' + viewRl[refId].id);
-            if (//match on records with status either not available or joined to a different record
-              relRl[refId][j].status == 'not available' //||
+            if (//match on availabilities set to unavailable (but not shifts that are set to confirmed)
+              relRl[refId][j].status == 'not available' &&  viewRl[refId][i].status !== 'confirmed'
+              //||
               // (
               //   (relRl[refId][j][self.rel.view.rel.join] !== undefined && relRl[refId][j][self.rel.view.rel.join] !== '' && viewRl[refId][i][self.rel.join] !== undefined && viewRl[refId][i][self.rel.join] !== '')&&
               //   (relRl[refId][j][self.rel.view.rel.join] !== viewRl[refId][i].id)// || relRl[refId][j].id !== viewRl[refId][i][self.rel.join]
@@ -701,6 +702,14 @@ function View(p){
     return self.getRecordsSortedByRef(ref)[id];
   };
 
+function sortByDate (recs){
+  recs.sort(function(a,b){
+    if (a.start.getTime() < b.start.getTime()){return -1;}
+    if (a.start.getTime() > b.start.getTime()){return 1;}
+  });
+  return recs;
+};
+
   function getRowFromRecordId(id){
     for (var i = 0; i < self.view.sheet.data.length; i++) {
       if (self.view.sheet.data[i].id === id){
@@ -1022,13 +1031,13 @@ function View(p){
         logNoRecordsError();
       }
       // LOG RECORD LIST (for testing only)
-      // if(self.view.class === 'schedule'){
-      //   for (var i = 0; i < self.recordList.length; i++) {//log record list values
-      //     for (var j in self.recordList[i]){
-      //       Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
-      //     }
-      //   }        
-      // }
+      if(self.view.class === 'schedule'){
+        for (var i = 0; i < self.recordList.length; i++) {//log record list values
+          for (var j in self.recordList[i]){
+            Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
+          }
+        }        
+      }
       // //LOG REF NAMES AND IDS
       // //Logger.log('self.refs[0].names: ' + self.refs[0].names);
       // //Logger.log('self.refs[0].ids: ' + self.refs[0].ids);
@@ -1567,6 +1576,8 @@ function View(p){
 
   //* vvv SEND EMAILS vvv *//
 
+
+
   this.sendEmails = function (){
 
     //Logger.log('running this.sendEmails()!');
@@ -1591,15 +1602,20 @@ function View(p){
     function initEmailRecords(){
       //Logger.log('running initEmailRecords()');
       // //Logger.log('typeof refId: ' + typeof refId);
-      for (var refId in self.recordsSortedByRef[1]){
-        for (var i = 0; i < self.recordsSortedByRef[1][refId].length; i++){
-          if (self.recordsSortedByRef[1][refId][i].status == 'proposed'){
+      var recs = self.recordsSortedByRef[1];
+      for (var refId in recs){
+        for (var i = 0; i < recs[refId].length; i++){
+          if (recs[refId][i].status === 'proposed' || 
+            (recs[refId][i].status === 'confirmed' && recs[refId][i].urgency === 'emergency' && self.view.instance === 'update')
+          ){
             //Logger.log('self.recordsSortedByRef[1]['+refId+']['+i+'].start: ' + self.recordsSortedByRef[1][refId][i].start);
             if (er[refId] === undefined){er[refId] = [];}
-            er[refId].push(self.recordsSortedByRef[1][refId][i]);
+            er[refId].push(recs[refId][i]);
           }
         }
+        er[refId] = sortByDate(er[refId]);
       }
+
       //Logger.log('Finished running initEmailRecords()');
       //LOG RECS (for testing)
       // for (var refId in er){
@@ -1627,7 +1643,7 @@ function View(p){
       //Logger.log('runnning setUrgencies()');
       var now = new Date();
       for (var i = 0; i < er[refId].length; i++) {
-         if (now.getWeekMap().mon.getTime() != er[refId][i].start.getWeekMap().mon.getTime()){
+         if (now.getWeekMap().mon.getTime() != er[refId][i].start.getWeekMap().mon.getTime() && now.getDay() !== 0){//match on records that start next week, unless it's Sunday (right now)
           er[refId][i].urgency = 'weekly';
         } else {
           var dif = er[refId][i].start - now;
@@ -1714,10 +1730,12 @@ function View(p){
       function getOffering(recs, emailType){
         if (emailType == 'weekly'){
           return 'We&rsquo;d like to offer you the following schedule this week:</p>';
-        } else if (recs.length > 1) {
-          return 'We&rsquo;d like to offer you the following ' + emailType + ' shifts:</p>';
+        } else if (emailType == 'extra'){
+          var str = 'We\'d like to offer you the following extra shift';
+          return recs.length > 1 ? str.concat('s: </p>') : str.concat(': </p>')        
         } else {
-          return 'We&rsquo;d like to offer you the following ' + emailType + ' shifts:</p>';
+          var str = 'As per our conversation just now, you are confirmed for the following emergency shift';
+          return recs.length > 1 ? str.concat('s: </p>') : str.concat(': </p>') 
         }
       };
 
@@ -1738,7 +1756,7 @@ function View(p){
 
       function getNotes(recs, emailType){
         var now = new Date();
-        if (emailType == 'weekly'){
+        if (emailType === 'weekly'){
           var header = '<p><strong>Please read the restaurant descriptions below and confirm your schedule by 6pm this Saturday.</strong></p><strong><span style="text-decoration: underline;">Notes:</span></strong></p><ul><li>',
             footer = '</li></ul>'
             n = [];
@@ -1746,10 +1764,11 @@ function View(p){
               n.push(ee.notes.data[i].notes);
             };
           return header + n.join('</li><li>') + footer;
-        } else if (recs.length > 1) {
-          return '<p>Please confirm if you can work them by 2pm tomorrow ('+now.incrementDate(1).getDayName()+'). Thanks!</p>';
+        } else if (emailType === 'extra') {
+          var pronoun = recs.length > 1 ? 'them' : 'it';
+          return '<p>Please confirm if you can work'+ pronoun +' by 2pm tomorrow ('+now.incrementDate(1).getDayName()+'). Thanks!</p>';
         } else {
-          return '<p>Please confirm if you can work it by 2pm tomorrow ('+now.incrementDate(1).getDayName()+'). Thanks!</p>';
+          return '';
         }
       };
 
@@ -1801,7 +1820,8 @@ function View(p){
 
     function setStatuses(refId){
       for (var i = 0; i < er[refId].length; i++) {
-        self.getRecordFromId(er[refId][i].id).status = 'delegated';
+        var rec = self.getRecordFromId(er[refId][i].id);
+        rec.status = rec.urgency === 'emergency' ? 'confirmed' : 'delegated';
       }
     };
 

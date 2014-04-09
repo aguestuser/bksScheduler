@@ -2,6 +2,9 @@
 // This is free software licensed under the GNU General Public License. 
 // See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
 
+
+//for testing, see: https://script.google.com/a/macros/bkshift.com/s/AKfycby3TGiZ_jVpfdy5b2nP6QZ8r6kAAWVjqaXqlm6GI8M/dev
+
 //*** vvv UI APP vvv ***//
 
 function initUi(serverHandler){//initiate UI dialog
