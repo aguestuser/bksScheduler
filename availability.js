@@ -172,7 +172,7 @@ function createRecords(e){
     };
 
   var availability = new View(ap);
-  availability.writeToModel().refreshViews(['grid', 'weekly', 'lookup']);
+  availability.writeToModel().refreshViews(['grid']);
   return app.close();
 };
 
@@ -201,7 +201,7 @@ function saveEdits(){
       availability
         .writeToRel()
         .writeToModel()
-        .refreshViews(['grid', 'weekly']);  
+        .refreshViews(['grid']);  
       schedule
         .refreshViews(['grid', 'weekly', 'update']); 
     }

@@ -4,6 +4,7 @@
 
 //*CONSTRUCT SHEET OBJECTS
 function Sheet (ss, ws){
+  // Logger.log('creating new Sheet('+ss+', '+ws+')');
   var self = this,
     testingKeys = {
       sheets: '0AkfgEUsp5QrAdFVXX0JMSjFIYWxXdlBZQ1NtRFVHVEE',
@@ -79,6 +80,7 @@ function Sheet (ss, ws){
   };
 
   this.updateCell = function(row, col, val){
+    Logger.log('running '+this.class+'.'+this.instance+'updateCell('+row+', '+col+', '+val+')')
     this.g.getRange(row, col).setValue(val);
     return this;
   };
@@ -107,20 +109,24 @@ function Sheet (ss, ws){
   };
 
   this.clearRange = function (){
-    // if (this.data[this.headers[0]] !== undefined && this.data[this.headers[0]] !== ''){
+    if (this.data[0]){
       this.g
         .getRange(this.row.first, this.col.first, this.row.getNum(), this.col.getNum())
         .clear({contentsOnly:true});      
-    // }
+    }
     return this;
   };
 
   this.setRange = function (range){
-    this.g
-      .getRange(this.row.first, this.col.first, range.length, range[0].length)
-      .setValues(range);
+    if (range.length > 0){
+      this.g
+        .getRange(this.row.first, this.col.first, range.length, range[0].length)
+        .setValues(range);    
+    } else {
+      toast ('Note: you tried to set a range with a blank range.');
+    }
     return this;
-  };
+  }
 };
 
 //*TRANSLATE SPREADSHEET DATA TO JSON
@@ -393,6 +399,14 @@ function getRecordFromModelById(model, id){
   }
 };
 
+function getIdsFromModel(model){
+  var ids = [];
+  for (var i = 0; i < model.data.length; i++){
+    ids.push(model.data[i].id);
+  }
+  return ids;
+};
+
 function getActiveIdsFromModel(model){
   var ids = [];
   for (var i = 0; i < model.data.length; i++){
@@ -401,14 +415,21 @@ function getActiveIdsFromModel(model){
   return ids;
 };
 
+function getNamesFromModel(model){
+  var names = [];
+  for (var i = 0; i < model.data.length; i++){
+    names.push(model.data[i].name);
+  }
+  return names;
+};
+
 function getActiveNamesFromModel(model){
   var names = [];
   for (var i = 0; i < model.data.length; i++){
     if (model.data[i].active){names.push(model.data[i].name);}
   }
   return names;
-}
-
+};
 
 function getNamesFromIds(model, ids){
   var names = [];

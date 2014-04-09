@@ -215,7 +215,7 @@ function saveEdits(){
           .writeToModel()
           .refreshViews(['grid', 'weekly', 'update']);  
         availability
-          .refreshViews(['grid', 'weekly']); 
+          .refreshViews(['grid']); 
       }
     }  
   }          
@@ -251,7 +251,7 @@ function sendEmails(){
         .writeToModel()
         .refreshViews(['grid', 'weekly', 'update']);  
       availability
-        .refreshViews(['grid', 'lookup']); 
+        .refreshViews(['grid']); 
     }
   }
 };
