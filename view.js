@@ -1,6 +1,16 @@
-// Written by Austin Guest, 2014. 
-// This is free software licensed under the GNU General Public License v3. 
-// See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
+/* BKS SHIFT SCHEDULER
+*
+* AUTHOR
+* Written by Austin Guest, 2014
+*
+* LICENSE
+* This is free software licensed under the GNU General Public License v3. 
+* See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
+*
+* DEPENDENCIES
+* - QUnit for GAS, key: 
+*
+*/
 
 //*** VIEW CONSTRUCTOR FUNCTION ***//
 
@@ -264,7 +274,12 @@ function View(p){
 
   this.writeToRel = function(){
     Logger.log('Running ' + this.view.class + '.writeToRel()');
-    var viewJoin = this.rel.join, relJoin = this.rel.view.rel.join;
+    var viewJoin = this.rel.join, 
+      relJoin = this.rel.view.rel.join;
+    
+    
+
+
     for (var i = 0; i < this.recordList.length; i++) {//loop through recordlist
       if (this.recordList[i][viewJoin] !== undefined && this.recordList[i][viewJoin] !== ''){//proceed only for records joined to rel records
         var viewRec = this.recordList[i], 
@@ -358,7 +373,7 @@ function View(p){
             // //Logger.log('rel join id: ' + relRl[refId][self.rel.view.rel.join]);
             // //Logger.log ('view join id:' + viewRl[refId].id);
             if (//match on availabilities set to unavailable (but not shifts that are set to confirmed)
-              relRl[refId][j].status == 'not available' &&  viewRl[refId][i].status !== 'confirmed'
+              relRl[refId][j].status === 'not available' &&  viewRl[refId][i].status !== 'confirmed'
               //||
               // (
               //   (relRl[refId][j][self.rel.view.rel.join] !== undefined && relRl[refId][j][self.rel.view.rel.join] !== '' && viewRl[refId][i][self.rel.join] !== undefined && viewRl[refId][i][self.rel.join] !== '')&&
@@ -461,7 +476,30 @@ function View(p){
          if(recordRow.getBackground()== '#FF00FF'){
           recordRow.setBackground('#FFFFFF');
         }
-      }//vv write joins
+      }
+
+      // var viewid = self.noConflicts[i].viewid,
+      //   viewJoin = self.rel.join,
+      //   viewRec = self.getRecordFromId(viewid),
+      //   relid = self.noConflicts[i].relid,
+      //   relJoin = self.rel.view.rel.join,
+      //   relRec = self.rel.view.getRecordFromId(relid);
+      
+      // if (!hasJoin(viewRec, viewJoin)){
+      //   if (self.view.class == 'schedule' && hasOtherJoin(relRec, relJoin, viewid)){
+      //     var rlIndex = getRlIndexFromRecordId(relid);
+      //     self.rel.view.writeNewRecordToModel(relRec, rlIndex);
+      //     var newrelRec = self.rel.view.recordList[rlIndex];
+      //       newrelid = newRelRec.id; 
+      //     createJoin(self.model, viewid, newrelid, viewJoin, viewRec);
+      //     createJoin(self.rel.view.model, newrelid, viewid, newRelJoin, newRelRec);    
+      //   } else {
+      //     createJoin(self.model, viewid, relid, viewJoin, viewRec);
+      //     createJoin(self.rel.view.model, relid, viewid, relJoin, relRec);          
+      //   }
+      // };
+
+      //vv write joins
       self.getRecordFromId(self.noConflicts[i].viewid)[self.rel.join] = self.noConflicts[i].relid;//set the record's join id to the id of the corresponding record in the view's rel
       var viewJoinRange = self.model.sheet.g.getRange(self.model.sheet.getRowNum([self.noConflicts[i].viewid]), self.model.sheet.getColNum(self.rel.join));//only update join id in model if it is different from current join id val
       if (viewJoinRange.getValue()!== self.noConflicts[i].relid){viewJoinRange.setValue(self.noConflicts[i].relid);}
@@ -478,7 +516,52 @@ function View(p){
     //Logger.log('finished running unhighlightNoConflicts()');
   };
 
+  function hasJoin(rec, join){
+    return (rec[join] === undefined || rec[join] === '') ? false : true;
+  };
+
+  function hasOtherJoin(rec, join, joinid){
+    return (hasJoin(rec, join) && rec[join] !== joinid) ? true : false; 
+  };
+
+  function createJoin(model, rec, viewid, relid, join){
+    var row = model.sheet.getRowNum(id), 
+      col = model.sheet.getColNum(join);
+    rec[join] = relid;
+    model.sheet.updateCell(row, col, relid);
+  };
+
+  function toRange(sheet){
+    var range = [];
+    _.map(sheet.data, function (row){
+      range.push(_.map(sheet.headers, function (header){
+        return row[header];
+      }));
+    })
+    return range;
+  };
+
   //**ACCESSOR METHODS **//
+
+  this.deleteRecord = function (id){
+    deleteFromList(this.recordList, id);
+    deleteFromList(this.model.sheet.data, id);
+    deleteFromList(this.cache.cellmap.sheet.data, id);
+    updateRange(this.model.sheet.data);
+    updateRange(this.cache.cellmap.data, id);
+    
+    function deleteFromList(list, id){
+      list = _.reject(list, function (row){
+        _.isEqual(row, _.isWhere(list, {id: id}));
+      })
+    };
+
+  };
+
+  function updateRange(sheet){
+    var range = toRange(sheet);
+    sheet.clearRange().setRange(range);
+  };
 
   this.setVols = function (vols){
     this.vols = vols;
@@ -703,6 +786,7 @@ function View(p){
   };
 
 function sortByDate (recs){
+Logger.log('running sortByDate('+recs+')');
   recs.sort(function(a,b){
     if (a.start.getTime() < b.start.getTime()){return -1;}
     if (a.start.getTime() > b.start.getTime()){return 1;}
@@ -734,6 +818,12 @@ function sortByDate (recs){
       if(self.cache.rowmap.sheet.data[i].ref0id == cm.ref0id){
         return self.cache.rowmap.sheet.data[i].row;
       }
+    };
+  };
+
+  function getRlIndexFromRecordId(id){
+    for (var i = 0; i < self.recordList.length; i++) {
+      if(self.recordList[i].id === id){return i;}
     };
   };
 
@@ -1580,7 +1670,7 @@ function sortByDate (recs){
 
   this.sendEmails = function (){
 
-    //Logger.log('running this.sendEmails()!');
+    Logger.log('running this.sendEmails()!');
     toast('Sending emails...');
 
     var ee = {}, er = {}, ep = {}, user = Session.getActiveUser().getEmail(), emailCount = 0;
@@ -1606,13 +1696,15 @@ function sortByDate (recs){
       for (var refId in recs){
         for (var i = 0; i < recs[refId].length; i++){
           if (recs[refId][i].status === 'proposed' || 
-            (recs[refId][i].status === 'confirmed' && recs[refId][i].urgency === 'emergency' && self.view.instance === 'update')
+            (recs[refId][i].status === 'confirmed' && self.view.instance === 'update')
           ){
             //Logger.log('self.recordsSortedByRef[1]['+refId+']['+i+'].start: ' + self.recordsSortedByRef[1][refId][i].start);
-            if (er[refId] === undefined){er[refId] = [];}
+            er[refId] = er[refId] || [];
             er[refId].push(recs[refId][i]);
           }
         }
+      }
+      for (var refId in er){
         er[refId] = sortByDate(er[refId]);
       }
 
@@ -1673,7 +1765,13 @@ function sortByDate (recs){
           return 'weekly';
         } else {
           for (var i = 0; i < recs.length; i++){
-            if (recs[i].urgency == 'extra'){return 'extra';}
+            if (recs[i].urgency == 'extra'){
+              if (recs[i].status === 'confirmed'){
+                return 'extra confirmation';              
+              } else {
+                return 'extra delegation';
+              }
+            }
           } 
           return 'emergency';      
         }
@@ -1685,7 +1783,7 @@ function sortByDate (recs){
           ref0NameStr = getRef0NameStr(recs);
         if (emailType == 'weekly'){
           return '[BK SHIFT SCHEDULE] ' + formatDate(self.dates.weekMap.mon) + ' - ' + formatDate(self.dates.weekMap.sun);
-        } else if (emailType == 'extra'){
+        } else if (emailType.indexOf('extra') >= 0){
           return recs.length > 1 ? '[EXTRA SHIFTS]: ' + dateStr : '[EXTRA SHIFT]: ' + dateStr + ' at ' + ref0NameStr;
         } else {
           return recs.length > 1 ? '[EMERGENCY SHIFTS]: ' + dateStr : '[EMERGENCY SHIFT]: ' + dateStr +' at ' + ref0NameStr;
@@ -1730,11 +1828,12 @@ function sortByDate (recs){
       function getOffering(recs, emailType){
         if (emailType == 'weekly'){
           return 'We&rsquo;d like to offer you the following schedule this week:</p>';
-        } else if (emailType == 'extra'){
+        } else if (emailType == 'extra delegation'){
           var str = 'We\'d like to offer you the following extra shift';
           return recs.length > 1 ? str.concat('s: </p>') : str.concat(': </p>')        
         } else {
-          var str = 'As per our conversation just now, you are confirmed for the following emergency shift';
+          var urgency = emailType.indexOf('confirmation') < 0 ? emailType : emailType.slice(0, emailType.indexOf(' confirmation'));  
+            str = 'As per our conversation just now, you are confirmed for the following ' + urgency + ' shift';
           return recs.length > 1 ? str.concat('s: </p>') : str.concat(': </p>') 
         }
       };
@@ -1764,7 +1863,7 @@ function sortByDate (recs){
               n.push(ee.notes.data[i].notes);
             };
           return header + n.join('</li><li>') + footer;
-        } else if (emailType === 'extra') {
+        } else if (emailType === 'extra delegation') {
           var pronoun = recs.length > 1 ? 'them' : 'it';
           return '<p>Please confirm if you can work'+ pronoun +' by 2pm tomorrow ('+now.incrementDate(1).getDayName()+'). Thanks!</p>';
         } else {
@@ -1821,7 +1920,7 @@ function sortByDate (recs){
     function setStatuses(refId){
       for (var i = 0; i < er[refId].length; i++) {
         var rec = self.getRecordFromId(er[refId][i].id);
-        rec.status = rec.urgency === 'emergency' ? 'confirmed' : 'delegated';
+        rec.status = rec.status === 'proposed' ? 'delegated' : rec.status;
       }
     };
 
