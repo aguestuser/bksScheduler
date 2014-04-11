@@ -8,8 +8,8 @@
 * See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
 *
 * DEPENDENCIES
-* - QUnit for GAS, key: 
-*
+* - QUnit for GAS Libray, key: MxL38OxqIK-B73jyDTvCe-OBao7QLBR4j
+* - underscorejs for GAS Library; key: MGwgKN2Th03tJ5OdmlzB8KPxhMjh3Sh48
 */
 
 //*** VIEW CONSTRUCTOR FUNCTION ***//
@@ -248,6 +248,14 @@ function View(p){
     return this;
   };
 
+  function cloneRecord(record){
+    var i = self.recordList.length +1;
+    self.recordList.push(record);
+    self.recordList[i].id = '';
+    this.writeNewRecordToModel(record, i);
+    return self.recordList[i];
+  };
+
   this.refreshViews = function(instances){
     Logger.log('Running '+this.view.class+'.refreshViews('+instances+')!');
     // //Logger.log('this.p: ' + this.p);
@@ -276,41 +284,81 @@ function View(p){
     Logger.log('Running ' + this.view.class + '.writeToRel()');
     var viewJoin = this.rel.join, 
       relJoin = this.rel.view.rel.join;
-    
-    
-
-
-    for (var i = 0; i < this.recordList.length; i++) {//loop through recordlist
-      if (this.recordList[i][viewJoin] !== undefined && this.recordList[i][viewJoin] !== ''){//proceed only for records joined to rel records
-        var viewRec = this.recordList[i], 
-          viewid = viewRec.id, 
-          ref1id = this.recordList[i][this.refs[1].idKey],
-          relid = this.recordList[i][viewJoin],
-          relRec = this.rel.view.getRecordFromId(relid);  
-        if (ref1id === undefined || ref1id === ''){ //delete joins if ref1 vals are null (ie if references to the entity joining the records has been deleted)
-          deleteJoin(this.rel.view.model, relRec, relid, relJoin, 'rel');
-          deleteJoin(this.model, viewRec, viewid, viewJoin, 'view');
+    if (self.view.class === 'schedule'){
+      _.each(self.correspondences, function (cor){
+        if (cor.viewids.length == 1 && cor.relids.length == 1){//if shift has 1-to-1 relationship to availability
+          var viewRec = this.getRecordFromId(viewid), 
+            relRec = this.rel.view.getRecordFromId(relid);
+          updateJoins(this.model, viewRec, viewid, viewJoin, this.rel.view.model, relRec, relid, relJoin);//create new joins if necessary
+          updateJoinedRec(viewRec, relRec, viewid, this.rel.vols);//write volatile data to joined rec
         } else {
-          updateJoin(viewid, relJoin, ref1id);
-          updateJoinedRec(viewRec, relRec, relid, this.rel.vols);
+          
+          if (cor.relids.length > 1){//if shift corresponds to more than 1 availability, OVERWRITE (delete joins to old rel recs)
+          
+            _.each(cor.relids, function(relid){
+              var relRec = this.rel.view.getRecordFromId(relid),
+                viewRec = this.getRecordFromId(cor.viewids[0]);
+                ref1id = viewRec[this.refs[1].idKey];
+              if(ref1id !== relid){//if shift is associated with a different rider, delete the join between shift & this rider's availability
+                deleteJoin(this.rel.view.model, relRec, relid, relJoin, 'rel');
+                deleteJoin(this.model, viewRec, viewid, viewJoin, 'view');
+              } else {//if shift is associated with same rider, create a new join (if necessary) and write volatile data to joined rel rec
+                updateJoins(this.model, viewRec, viewid, viewJoin, this.rel.view.model, relRec, relid, relJoin);//create new joins if necessary
+                updateJoinedRec(viewRec, relRec, viewid, this.rel.vols);//write volatile data to joined rec
+              }
+            });
+          }
+          
+          if (cor.viewids.length > 1){
+          
+            var viewid = _.first(cor.viewids),
+              viewRec = this.getRecordFromId(viewid),
+              relid = _.first(cor.relids),
+              relRec = this.rel.view.getRecordFromId(relid),
+              viewIds = _.rest(cor.viewids),
+              relIndex = getRlIndexFromRecordId(relid);
+            updateJoins(this.model, viewRec, viewid, viewJoin, this.rel.view.model, relRec, relid, relJoin);//create new joins if necessary
+            updateJoinedRec(viewRec, relRec, viewid, this.rel.vols);//write volatile data to joined rec
+            
+            _.each(viewIds, function(viewid){
+              relRec = cloneRecord(relRec);
+              relid = relRec.id;
+              updateJoins(this.model, viewRec, viewid, viewJoin, this.rel.view.model, relRec, relid, relJoin);//create new joins if necessary
+              updateJoinedRec(viewRec, relRec, viewid, this.rel.vols);//write volatile data to joined rec
+            });
+         
+          }
         }
-      }
+      });
+
+    } else if (self.view.class === 'availability'){
+      
     }
-    this.rel.view.model.sheet = new Sheet(this.rel.view.view.sheet.class, this.rel.view.view.sheet.instance);//refresh rel object's copy of model to reflect edits
-    toast('Updated ' + this.rel.view.model.class + ' model!');
-    //Logger.log('Finished running ' + this.view.class + '.writeToRel()');
-    return this;
+  
   };
 
-  function updateJoinedRec(viewRec, relRec, id, vols){
-    //Logger.log('running updatJoinedRec('+viewRec+', '+relRec+', '+id+', '+vols+')');
-    var model = self.rel.view.model;
-    for (var i = 0; i < vols.length; i++) {//overwrite rel values with volatile view values
-      if (viewRec[vols[i]] !== relRec[vols[i]]){//match records on join id & overwrite rel records that don't match view records
-        var val = viewRec[vols[i]] === undefined || viewRec[vols[i]] === '' ? '' : viewRec[vols[i]];
-        model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum(vols[i]), val);
-      }
-    }
+
+
+  function hasJoin(rec, join){
+    return (rec[join] === undefined || rec[join] === '') ? false : true;
+  };
+
+  function hasOtherJoin(rec, join, joinid){
+    return (hasJoin(rec, join) && rec[join] !== joinid) ? true : false; 
+  };
+
+  function updateJoins(viewRec, relRec){
+    if (!hasJoin(viewRec, viewJoin){//create new join if not already joined
+      createJoin(viewModel, viewRec, viewid, relid, viewJoin);
+      createJoin(relModel, relRec, relid, viewid, relJoin);
+    } 
+  };
+
+  function createJoin(model, rec, viewid, relid, join){
+    var row = model.sheet.getRowNum(id), 
+      col = model.sheet.getColNum(join);
+    rec[join] = relid;
+    model.sheet.updateCell(row, col, relid);
   };
 
   function deleteJoin(model, rec, id, join, type){
@@ -325,82 +373,114 @@ function View(p){
     }
   };
 
-  function updateJoin(joinid, join, ref1id){//delete joins from rel records that have been joined to new view records
-    var otherJoins = getOtherJoins(self.rel.view.recordList, joinid, join, ref1id);
-    if (otherJoins.length > 0){
-      for (var i = 0; i < otherJoins.length; i++) {
-        var relRec = self.rel.view.getRecordFromId(otherJoins[i]);
-        deleteJoin(self.rel.view.model, relRec, otherJoins[i], join, 'rel');
+  function updateJoinedRec(viewRec, relRec, id, vols){
+    //Logger.log('running updatJoinedRec('+viewRec+', '+relRec+', '+id+', '+vols+')');
+    var model = self.rel.view.model;
+    for (var i = 0; i < vols.length; i++) {//overwrite rel values with volatile view values
+      if (viewRec[vols[i]] !== relRec[vols[i]]){//match records on join id & overwrite rel records that don't match view records
+        var val = viewRec[vols[i]] === undefined || viewRec[vols[i]] === '' ? '' : viewRec[vols[i]];
+        model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum(vols[i]), val);
       }
     }
-  };  
+  };
 
-  function getOtherJoins(recs, joinid, join, ref1id){//retrieve rel records joined to same view record but with different refids associated w/ the record
-    //Logger.log('running getOtherJoins('+joinid+', '+join+', '+ref1id+')');
-    var joins = [];
-    for (var i = 0; i < recs.length; i++) {
-      if (recs[i][join] === joinid && recs[i][self.refs[1].idKey] !== ref1id){
-        joins.push(recs[i].id);
-      }
-    }
-    //Logger.log('found joins: ' + joins);
-    return joins;
+
+  //   for (var i = 0; i < this.recordList.length; i++) {//loop through recordlist
+  //     if (this.recordList[i][viewJoin] !== undefined && this.recordList[i][viewJoin] !== ''){//proceed only for records joined to rel records
+  //       var viewRec = this.recordList[i], 
+  //         viewid = viewRec.id, 
+  //         ref1id = this.recordList[i][this.refs[1].idKey],
+  //         relid = this.recordList[i][viewJoin],
+  //         relRec = this.rel.view.getRecordFromId(relid);  
+  //       if (ref1id === undefined || ref1id === ''){ //delete joins if ref1 vals are null (ie if references to the entity joining the records has been deleted)
+  //         deleteJoin(this.rel.view.model, relRec, relid, relJoin, 'rel');
+  //         deleteJoin(this.model, viewRec, viewid, viewJoin, 'view');
+  //       } else {
+  //         updateJoin(viewid, relJoin, ref1id);
+  //         updateJoinedRec(viewRec, relRec, relid, this.rel.vols);
+  //       }
+  //     }
+  //   }
+  //   this.rel.view.model.sheet = new Sheet(this.rel.view.view.sheet.class, this.rel.view.view.sheet.instance);//refresh rel object's copy of model to reflect edits
+  //   toast('Updated ' + this.rel.view.model.class + ' model!');
+  //   //Logger.log('Finished running ' + this.view.class + '.writeToRel()');
+  //   return this;
+  // };
+
+  // function updateJoin(joinid, join, ref1id){//delete joins from rel records that have been joined to new view records
+  //   var otherJoins = getOtherJoins(self.rel.view.recordList, joinid, join, ref1id);
+  //   if (otherJoins.length > 0){
+  //     for (var i = 0; i < otherJoins.length; i++) {
+  //       var relRec = self.rel.view.getRecordFromId(otherJoins[i]);
+  //       deleteJoin(self.rel.view.model, relRec, otherJoins[i], join, 'rel');
+  //     }
+  //   }
+  // };  
+
+  // function getOtherJoins(recs, joinid, join, ref1id){//retrieve rel records joined to same view record but with different refids associated w/ the record
+  //   //Logger.log('running getOtherJoins('+joinid+', '+join+', '+ref1id+')');
+  //   var joins = [];
+  //   for (var i = 0; i < recs.length; i++) {
+  //     if (recs[i][join] === joinid && recs[i][self.refs[1].idKey] !== ref1id){
+  //       joins.push(recs[i].id);
+  //     }
+  //   }
+  //   //Logger.log('found joins: ' + joins);
+  //   return joins;
+  // };
+
+  function toRange(sheet){
+    var range = [];
+    _.map(sheet.data, function (row){
+      range.push(_.map(sheet.headers, function (header){
+        return row[header];
+      }));
+    })
+    return range;
   };
 
 
 
-
-  this.getConflictsWith = function(View){
-    //Logger.log('running .getConflictsWith()');
+  this.joinWith = function(View){
+    Logger.log('running '+this.view.class+'.joinWith('+View.view.class+')');
     toast('Checking for conflicts...')
     var viewRl = this.recordsSortedByRef[1];
     var relRl = View.recordsSortedByRef[0];
-    getConflicts(viewRl, relRl);
-    //Logger.log('finished running .getConflictsWith()');    
+    _.each(viewRl[refId], function (viewRec){
+      _.each(relRl[refId], function (relRec){
+        if (matchOnDayAndPeriod(viewRec, relRec)) {
+          setCorrespondence(viewRec, relRec);
+          setConflict(viewRec, relRec); 
+        }
+      });
+    });
+    Logger.log('finished running '+this.view.class+'.joinWith('+View.view.class+')');  
     return this;
   };
 
-  function getConflicts(viewRl, relRl){   
-    //Logger.log('running getConflicts()');
-    self.conflicts = [];
-    self.doubleBookings = [];
-    self.noConflicts = [];
-    for (var refId in viewRl) {//loop through joined refs (riders)
-      for (var i = 0; i < viewRl[refId].length; i++) {//loop through view records associated with each ref
-        // if (isDoubleBooked(viewRl[refId][i], viewRl[refId])){self.doubleBookings.push(viewRl[refId][i].id);}
-        for (var j = 0; j < relRl[refId].length; j++){//loop through rel records associated with ref
-          if (matchOnDayAndPeriod(viewRl[refId][i], relRl[refId][j])) {//match on day and period
-            // //Logger.log('rel join id: ' + relRl[refId][self.rel.view.rel.join]);
-            // //Logger.log ('view join id:' + viewRl[refId].id);
-            if (//match on availabilities set to unavailable (but not shifts that are set to confirmed)
-              relRl[refId][j].status === 'not available' &&  viewRl[refId][i].status !== 'confirmed'
-              //||
-              // (
-              //   (relRl[refId][j][self.rel.view.rel.join] !== undefined && relRl[refId][j][self.rel.view.rel.join] !== '' && viewRl[refId][i][self.rel.join] !== undefined && viewRl[refId][i][self.rel.join] !== '')&&
-              //   (relRl[refId][j][self.rel.view.rel.join] !== viewRl[refId][i].id)// || relRl[refId][j].id !== viewRl[refId][i][self.rel.join]
-              // )
-            ){//add records matching above (status & join) criteria to conflicts array, not matching to noConflicts
-              self.conflicts.push({viewid: viewRl[refId][i].id, relid: relRl[refId][j].id});
-            } else {
-              self.noConflicts.push({viewid: viewRl[refId][i].id, relid: relRl[refId][j].id});
-            }
-          }
-        }
+  function setCorrespondence(viewRec, relRec){   
+    Logger.log('running setCorrespondence('+viewRec+', '+relRec+')');
+    self.correspondences = self.correspondences || [];
+    var viewMatch = _.find(self.correspondences, _.matches({viewid: viewRec.id}));//find any correspondence k/v pair that already contain the current viewRecs's id as a value
+      relMatch = _.find(self.correspondences, _.matches({relid: relRec.id}));//find any correspondence k/v pair that already contain the current viewRecs's id as a value
+    if (!viewMatch && !relMatch) {//if no such correspondences exist, create a new one
+      self.correspondences.push(viewid: [viewRec.id], relid: [relRec.id]);
+    } else {//if the view rec already corresponds to a rel rec, add the current rel rec to the array of recs the view rec corresponds with
+      if (viewMatch && !_.contains(viewMatch.relids, relRec.id)) {
+        viewMatch.relids.push(relRec.id);
       }
+      if (relMatch && !_.contains(relMatch.viewids, viewRec.id) {//if the rel rec already corresponds to a view rec, add the current view rec to the array of recs the rel rec corresponds with
+        viewMatch.relids.push(relRec.id);
+      }                             
     }
+  };
 
-    function matchOnDayAndPeriod(rec1, rec2){
-      if (
-          rec1.start.getDate() == rec2.start.getDate() && 
-          rec1.start.getMonth() == rec2.start.getMonth() &&
-          rec1.start.getYear() == rec2.start.getYear()&&
-          (rec1.am == rec2.am || rec1.pm == rec2.pm)
-        ){
-        return true;
-      } else {
-        return false;
-      }
-    };
+  function setConflict(viewRec, relRec){
+    self.conflicts = self.conflicts || [];
+    if (relRec.status === 'not available' && viewRec.status !== 'confirmed'){
+      self.conflicts.push({viewid: viewRec.id, relid: relRec.id});
+    }
+  };
 
     // function isDoubleBooked(rec, recs){
     //   for (var i = 0; i < recs.length; i++) {
@@ -438,8 +518,8 @@ function View(p){
     } else {
       toast('No conflicts found!');
     }
+    if (self.view.type === 'list'){handleNoConflicts();}
     // handleDoubleBookings();      
-    handleNoConflicts();
     //Logger.log('finished running .showConflicts()');
   };
 
@@ -467,81 +547,25 @@ function View(p){
   function handleNoConflicts(){
     //Logger.log('running handleNoConflicts()');
     //Logger.log('self.noConflicts.length: ' + self.noConflicts.length);
-    for (var i = 0; i < self.noConflicts.length; i++) {
-      if (self.view.type == 'list'){//unhighlight noConflict rows that are still pink (because they used to contain a conflict)
-        //Logger.log('self.noConflicts['+i+'].viewid: ' + self.noConflicts[i].viewid);
-        var recordRow = self.view.sheet.g.getRange(getRowFromRecordId(self.noConflicts[i].viewid), self.view.sheet.col.first, 1, self.view.sheet.col.getLast());
-         // //Logger.log('recordRow.getValues(): ' + recordRow.getValues());
-         // //Logger.log ('recordRow.getBackground(): ' + recordRow.getBackground());
-         if(recordRow.getBackground()== '#FF00FF'){
-          recordRow.setBackground('#FFFFFF');
-        }
-      }
-
-      // var viewid = self.noConflicts[i].viewid,
-      //   viewJoin = self.rel.join,
-      //   viewRec = self.getRecordFromId(viewid),
-      //   relid = self.noConflicts[i].relid,
-      //   relJoin = self.rel.view.rel.join,
-      //   relRec = self.rel.view.getRecordFromId(relid);
-      
-      // if (!hasJoin(viewRec, viewJoin)){
-      //   if (self.view.class == 'schedule' && hasOtherJoin(relRec, relJoin, viewid)){
-      //     var rlIndex = getRlIndexFromRecordId(relid);
-      //     self.rel.view.writeNewRecordToModel(relRec, rlIndex);
-      //     var newrelRec = self.rel.view.recordList[rlIndex];
-      //       newrelid = newRelRec.id; 
-      //     createJoin(self.model, viewid, newrelid, viewJoin, viewRec);
-      //     createJoin(self.rel.view.model, newrelid, viewid, newRelJoin, newRelRec);    
-      //   } else {
-      //     createJoin(self.model, viewid, relid, viewJoin, viewRec);
-      //     createJoin(self.rel.view.model, relid, viewid, relJoin, relRec);          
-      //   }
-      // };
-
-      //vv write joins
-      self.getRecordFromId(self.noConflicts[i].viewid)[self.rel.join] = self.noConflicts[i].relid;//set the record's join id to the id of the corresponding record in the view's rel
-      var viewJoinRange = self.model.sheet.g.getRange(self.model.sheet.getRowNum([self.noConflicts[i].viewid]), self.model.sheet.getColNum(self.rel.join));//only update join id in model if it is different from current join id val
-      if (viewJoinRange.getValue()!== self.noConflicts[i].relid){viewJoinRange.setValue(self.noConflicts[i].relid);}
-      // //LOG JOIN VALUES (for testing) 
-      // //Logger.log('self.getRecordFromId('+self.noConflicts[i].viewid+')['+self.rel.join+']: ' + self.getRecordFromId(self.noConflicts[i].viewid)[self.rel.join]);
-
-      self.rel.view.getRecordFromId(self.noConflicts[i].relid)[self.rel.view.rel.join] = self.noConflicts[i].viewid;//set the join id of the corresponding record in the view's rel to the id of this record
-      var relJoinRange = self.rel.view.model.sheet.g.getRange(self.rel.view.model.sheet.getRowNum([self.noConflicts[i].relid]), self.rel.view.model.sheet.getColNum(self.rel.view.rel.join));//only update join id in model if it is different from current join id val
-      if (relJoinRange.getValue()!== self.noConflicts[i].viewid){relJoinRange.setValue(self.noConflicts[i].viewid);}      
-      // // LOG JOIN VALUES (for testing)
-      // //Logger.log('self.rel.view.getRecordFromId('+self.noConflicts[i].relid+')['+self.rel.view.rel.join+']: ' + self.rel.view.getRecordFromId(self.noConflicts[i].relid)[self.rel.view.rel.join]);
-
-    };
-    //Logger.log('finished running unhighlightNoConflicts()');
+    _.each(self.correspondences, function(cor){
+      var sheet = self.view.sheet,
+        r1 = getRowFromRecordId(cor.viewid), 
+        c1 = self.view.sheet.col.first, 
+        r2 = 1,
+        c2 = self.view.sheet.col.getLast(),
+        range = sheet.g.getRange(r1, c1, r2, c2);
+      if(range.getBackground() == '#FF00FF'){range.setBackground('#FFFFFF');}
+    });
   };
 
-  function hasJoin(rec, join){
-    return (rec[join] === undefined || rec[join] === '') ? false : true;
-  };
 
-  function hasOtherJoin(rec, join, joinid){
-    return (hasJoin(rec, join) && rec[join] !== joinid) ? true : false; 
-  };
 
-  function createJoin(model, rec, viewid, relid, join){
-    var row = model.sheet.getRowNum(id), 
-      col = model.sheet.getColNum(join);
-    rec[join] = relid;
-    model.sheet.updateCell(row, col, relid);
-  };
-
-  function toRange(sheet){
-    var range = [];
-    _.map(sheet.data, function (row){
-      range.push(_.map(sheet.headers, function (header){
-        return row[header];
-      }));
-    })
-    return range;
-  };
 
   //**ACCESSOR METHODS **//
+
+  function this.refreshModel = function(){
+    this.model.sheet = new Sheet(this.view.sheet.class, this.view.sheet.instance);
+  };
 
   this.deleteRecord = function (id){
     deleteFromList(this.recordList, id);
@@ -785,14 +809,27 @@ function View(p){
     return self.getRecordsSortedByRef(ref)[id];
   };
 
-function sortByDate (recs){
-Logger.log('running sortByDate('+recs+')');
-  recs.sort(function(a,b){
-    if (a.start.getTime() < b.start.getTime()){return -1;}
-    if (a.start.getTime() > b.start.getTime()){return 1;}
-  });
-  return recs;
-};
+  function matchOnDayAndPeriod(rec1, rec2){
+    if (
+        rec1.start.getDate() == rec2.start.getDate() && 
+        rec1.start.getMonth() == rec2.start.getMonth() &&
+        rec1.start.getYear() == rec2.start.getYear()&&
+        (rec1.am == rec2.am || rec1.pm == rec2.pm)
+      ){
+      return true;
+    } else {
+      return false;
+    }
+  };
+
+  function sortByDate (recs){
+    // Logger.log('running sortByDate('+recs+')');
+    recs.sort(function(a,b){
+      if (a.start.getTime() < b.start.getTime()){return -1;}
+      if (a.start.getTime() > b.start.getTime()){return 1;}
+    });
+    return recs;
+  };
 
   function getRowFromRecordId(id){
     for (var i = 0; i < self.view.sheet.data.length; i++) {

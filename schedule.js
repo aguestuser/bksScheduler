@@ -209,7 +209,7 @@ function saveEdits(){
       schedule.rel = {view: availability, join: 'availabilityid', vols: ['status', 'restaurantid', 'start', 'end']};
     
       schedule
-        .getConflictsWith(availability)
+        .joinWith(availability)
         .showConflicts();
       
       if (!schedule.hasConflicts()){
@@ -244,7 +244,7 @@ function sendEmails(){
     schedule.rel = {view: availability, join: 'availabilityid', vols: ['status', 'restaurantid', 'start', 'end']};
     
     schedule
-      .getConflictsWith(availability)
+      .joinWith(availability)
       .showConflicts();
     
     if (!schedule.hasConflicts()){    

@@ -199,6 +199,7 @@ function saveEdits(){
       availability.rel = {view: schedule, join: 'shiftid', vols: ['status', 'riderid']};
 
       availability
+        .joinWith(schedule)
         .writeToRel()
         .writeToModel()
         .refreshViews(['grid']);  
