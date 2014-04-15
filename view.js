@@ -276,9 +276,6 @@ function View(p){
     Logger.log('Running ' + this.view.class + '.writeToRel()');
     var viewJoin = this.rel.join, 
       relJoin = this.rel.view.rel.join;
-    
-    
-
 
     for (var i = 0; i < this.recordList.length; i++) {//loop through recordlist
       if (this.recordList[i][viewJoin] !== undefined && this.recordList[i][viewJoin] !== ''){//proceed only for records joined to rel records
@@ -303,7 +300,9 @@ function View(p){
   };
 
   function updateJoinedRec(viewRec, relRec, id, vols){
-    //Logger.log('running updatJoinedRec('+viewRec+', '+relRec+', '+id+', '+vols+')');
+    Logger.log('running updatJoinedRec('+viewRec+', '+relRec+', '+id+', '+vols+')');
+    Logger.log('viewRec.id: ' + viewRec.id);
+    Logger.log('relRec.id: ' + relRec.id);
     var model = self.rel.view.model;
     for (var i = 0; i < vols.length; i++) {//overwrite rel values with volatile view values
       if (viewRec[vols[i]] !== relRec[vols[i]]){//match records on join id & overwrite rel records that don't match view records
@@ -1007,7 +1006,7 @@ Logger.log('running sortByDate('+recs+')');
   function initVols(){
     if (self.view.type == 'list'){
       self.vols = [self.refs[1].idKey, 'status'];
-      if (self.view.class == 'schedule'){self.vols = self.vols.concat(['billing', 'urgency', 'notes']);}
+      if (self.view.class == 'schedule'){self.vols = self.vols.concat(['start', 'end', 'billing', 'urgency', 'notes']);}
     } else {//for grid views
       self.vols = self.view.gridType == 'times' ? [self.refs[1].idKey, 'start', 'end'] : [self.refs[1].idKey, 'status'];
     }
@@ -1121,13 +1120,13 @@ Logger.log('running sortByDate('+recs+')');
         logNoRecordsError();
       }
       // LOG RECORD LIST (for testing only)
-      if(self.view.class === 'schedule'){
-        for (var i = 0; i < self.recordList.length; i++) {//log record list values
-          for (var j in self.recordList[i]){
-            Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
-          }
-        }        
-      }
+      // if(self.view.class === 'schedule'){
+      //   for (var i = 0; i < self.recordList.length; i++) {//log record list values
+      //     for (var j in self.recordList[i]){
+      //       Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
+      //     }
+      //   }        
+      // }
       // //LOG REF NAMES AND IDS
       // //Logger.log('self.refs[0].names: ' + self.refs[0].names);
       // //Logger.log('self.refs[0].ids: ' + self.refs[0].ids);
@@ -1280,7 +1279,7 @@ Logger.log('running sortByDate('+recs+')');
   };
 
   function getVDFromRefStr(str, col, id){    
-    Logger.log('running getVDFromRefStr('+str+', '+col+', '+id+')');
+    // Logger.log('running getVDFromRefStr('+str+', '+col+', '+id+')');
     var code = str.slice(str.indexOf('-'), str.length).trim(),
       ref1Name = str.slice(0, str.indexOf('-')).trim(),
       idKey = self.refs[1].idKey,
