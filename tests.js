@@ -109,21 +109,6 @@ function testJoinFuncs(){
 
   //test 2 shifts to 1 avail
 
-}
-
-function testUpdateJoins(){
-  var cor = [//test 
-    {}
-  ]
-
-};
-
-function testUpdateJoinedRec(){
-
-};
-
-function testDeleteJoins(){
-
 };
 
 function testSortByDate(){
