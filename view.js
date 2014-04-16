@@ -282,62 +282,79 @@ function View(p){
 
   this.writeToRel = function(){
     Logger.log('Running ' + this.view.class + '.writeToRel()');
-    var viewJoin = this.rel.join, 
-      relJoin = this.rel.view.rel.join;
+    var join = {
+      view:{
+        model: this.model,
+        join: this.rel.join,
+        id: null,
+        joinid: null,
+        rec: null,
+      }, 
+      rel:{
+        model: this.rel.view.model,
+        join: this.rel.view.rel.join,
+        id: null,
+        joinid: null,
+        rec: null
+      } 
+    };
+
     if (self.view.class === 'schedule'){
       _.each(self.correspondences, function (cor){
         if (cor.viewids.length == 1 && cor.relids.length == 1){//if shift has 1-to-1 relationship to availability
-          var viewRec = this.getRecordFromId(viewid), 
-            relRec = this.rel.view.getRecordFromId(relid);
-          updateJoins(this.model, viewRec, viewid, viewJoin, this.rel.view.model, relRec, relid, relJoin);//create new joins if necessary
-          updateJoinedRec(viewRec, relRec, viewid, this.rel.vols);//write volatile data to joined rec
+          setJoinParams(join, cor.viewids[0], cor.relids[0]);
+          updateJoins(join);//create new joins if necessary
+          updateJoinedRec(join, this.rel.vols);//write volatile data to joined rec
+          // updateJoins(this.model, viewRec, viewid, viewJoin, this.rel.view.model, relRec, relid, relJoin);
+          // updateJoinedRec(viewRec, relRec, viewid, this.rel.vols);
         } else {
-          
           if (cor.relids.length > 1){//if shift corresponds to more than 1 availability, OVERWRITE (delete joins to old rel recs)
-          
             _.each(cor.relids, function(relid){
-              var relRec = this.rel.view.getRecordFromId(relid),
-                viewRec = this.getRecordFromId(cor.viewids[0]);
-                ref1id = viewRec[this.refs[1].idKey];
-              if(ref1id !== relid){//if shift is associated with a different rider, delete the join between shift & this rider's availability
-                deleteJoin(this.rel.view.model, relRec, relid, relJoin, 'rel');
-                deleteJoin(this.model, viewRec, viewid, viewJoin, 'view');
+              setJoinParams(join, cor.viewids[0], relid);
+              if(join.view.ref1id !== join.rel.ref0id){//if shift is associated with a different rider, delete the join between shift & this rider's availability
+                deleteJoin(join.rel, 'rel');
+                deleteJoin(join.view, 'view');
               } else {//if shift is associated with same rider, create a new join (if necessary) and write volatile data to joined rel rec
-                updateJoins(this.model, viewRec, viewid, viewJoin, this.rel.view.model, relRec, relid, relJoin);//create new joins if necessary
-                updateJoinedRec(viewRec, relRec, viewid, this.rel.vols);//write volatile data to joined rec
+                updateJoins(join);
+                updateJoinedRec(join, this.rel.vols);
               }
             });
           }
-          
           if (cor.viewids.length > 1){
-          
             var viewid = _.first(cor.viewids),
-              viewRec = this.getRecordFromId(viewid),
+              otherViewIds = _.rest(cor.viewids),
               relid = _.first(cor.relids),
-              relRec = this.rel.view.getRecordFromId(relid),
-              viewIds = _.rest(cor.viewids),
-              relIndex = getRlIndexFromRecordId(relid);
-            updateJoins(this.model, viewRec, viewid, viewJoin, this.rel.view.model, relRec, relid, relJoin);//create new joins if necessary
-            updateJoinedRec(viewRec, relRec, viewid, this.rel.vols);//write volatile data to joined rec
-            
+              otherRelIds = _.rest(cor.relids),
+              relIndex = this.rel.view.getRlIndexFromRecordId(relid);
+            setJoinParams(join, viewid, relid));
+            updateJoins(join);//create new joins if necessary
+            updateJoinedRec(join, this.rel.vols);//write volatile data to joined rec
             _.each(viewIds, function(viewid){
-              relRec = cloneRecord(relRec);
+              var relRec = cloneRecord(join.rel.rec);
               relid = relRec.id;
-              updateJoins(this.model, viewRec, viewid, viewJoin, this.rel.view.model, relRec, relid, relJoin);//create new joins if necessary
-              updateJoinedRec(viewRec, relRec, viewid, this.rel.vols);//write volatile data to joined rec
+              setJoinParams(join, viewid, relid);
+              updateJoins(join);//create new joins if necessary
+              updateJoinedRec(join, this.rel.vols);//write volatile data to joined rec
             });
-         
           }
         }
       });
-
     } else if (self.view.class === 'availability'){
       
     }
-  
+
   };
 
-
+  function setJoinParams (join, viewid, relid){
+    join.view.id = viewid;
+    join.view.joinid = relid;
+    join.view.rec = self.getRecordFromId(viewid);
+    join.view.ref1id = join.view.rec[self.refs[1].idKey];
+    join.rel.id = relid;
+    join.rel.joinid = viewid;
+    join.rel.rec = self.rel.view.getRecordFromId(relid);
+    join.view.ref0id = join.rel.rec[self.rel.view.refs[0].idKey];
+  }
 
   function hasJoin(rec, join){
     return (rec[join] === undefined || rec[join] === '') ? false : true;
@@ -347,39 +364,38 @@ function View(p){
     return (hasJoin(rec, join) && rec[join] !== joinid) ? true : false; 
   };
 
-  function updateJoins(viewRec, relRec){
-    if (!hasJoin(viewRec, viewJoin){//create new join if not already joined
-      createJoin(viewModel, viewRec, viewid, relid, viewJoin);
-      createJoin(relModel, relRec, relid, viewid, relJoin);
+  function updateJoins(join){//viewRec, relRec
+    if (!hasJoin(join.view.rec, join.view.join){//create new join if not already joined
+      createJoin(join.view);
+      createJoin(join.rel);
     } 
   };
 
-  function createJoin(model, rec, viewid, relid, join){
-    var row = model.sheet.getRowNum(id), 
-      col = model.sheet.getColNum(join);
-    rec[join] = relid;
-    model.sheet.updateCell(row, col, relid);
+  function createJoin(j){//model, rec, viewid, relid, join
+    var row = j.model.sheet.getRowNum(j.id), 
+      col = j.model.sheet.getColNum(j.join);
+    rec[join] = j.joinid;
+    model.sheet.updateCell(row, col, j.joinid);
   };
 
-  function deleteJoin(model, rec, id, join, type){
+  function deleteJoin(j, type){//model, rec, id, join, type
     //Logger.log('running deleteJoin('+model+', ' + rec + ', ' + id + ', ' + ', ' +join +', ' +type);
-    rec[join] = ''; // delete join from record list
-    model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum(join), '');//delete join from model
+    j.rec[join] = undefined; // delete join from record list
+    j.model.sheet.updateCell(j.model.sheet.getRowNum(id), j.model.sheet.getColNum(join), '');//delete join from model
     if (type === 'rel'){
-      rec[self.refs[0].idKey] = '';//delete joined ref1id from rel record list (reference is to ref[0] because the view's ref0 correspondes to the rel's ref1)
-      model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum(self.refs[0].idKey), '');//delete joined ref1id from rel model
+      j.rec[self.refs[0].idKey] = undefined;//delete joined ref1id from rel record list (reference is to ref[0] because the view's ref0 correspondes to the rel's ref1)
+      j.model.sheet.updateCell(j.model.sheet.getRowNum(id), j.model.sheet.getColNum(self.refs[0].idKey), '');//delete joined ref1id from rel model
       var status = self.rel.view.view.class === 'schedule' ? 'unassigned' : 'available';//set rel status attribute to defaul value
-      model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum('status'), status);
+      j.model.sheet.updateCell(j.model.sheet.getRowNum(id), j.model.sheet.getColNum('status'), status);
     }
   };
 
-  function updateJoinedRec(viewRec, relRec, id, vols){
+  function updateJoinedRec(join, vols){//viewRec, relRec, id, vols
     //Logger.log('running updatJoinedRec('+viewRec+', '+relRec+', '+id+', '+vols+')');
-    var model = self.rel.view.model;
     for (var i = 0; i < vols.length; i++) {//overwrite rel values with volatile view values
-      if (viewRec[vols[i]] !== relRec[vols[i]]){//match records on join id & overwrite rel records that don't match view records
-        var val = viewRec[vols[i]] === undefined || viewRec[vols[i]] === '' ? '' : viewRec[vols[i]];
-        model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum(vols[i]), val);
+      if (join.view.rec[vols[i]] !== join.rel.rec[vols[i]]){//match records on join id & overwrite rel records that don't match view records
+        var val = join.view.rec[vols[i]] === undefined || join.view.rec[vols[i]] === '' ? '' : join.view.rec[vols[i]];
+        join.model.sheet.updateCell(join.model.sheet.getRowNum(id), join.model.sheet.getColNum(vols[i]), val);
       }
     }
   };
@@ -858,7 +874,7 @@ function View(p){
     };
   };
 
-  function getRlIndexFromRecordId(id){
+  this.getRlIndexFromRecordId = function(id){
     for (var i = 0; i < self.recordList.length; i++) {
       if(self.recordList[i].id === id){return i;}
     };
