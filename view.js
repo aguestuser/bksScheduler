@@ -284,10 +284,10 @@ function View(p){
           ref1id = this.recordList[i][this.refs[1].idKey],
           relid = this.recordList[i][viewJoin],
           relRec = this.rel.view.getRecordFromId(relid);  
-        if (ref1id === undefined || ref1id === ''){ //delete joins if ref1 vals are null (ie if references to the entity joining the records has been deleted)
+        if (ref1id === undefined || ref1id === '' && relRec){ //delete joins if ref1 vals are null (ie if references to the entity joining the records has been deleted)
           deleteJoin(this.rel.view.model, relRec, relid, relJoin, 'rel');
           deleteJoin(this.model, viewRec, viewid, viewJoin, 'view');
-        } else {
+        } else if (relRec) {
           updateJoin(viewid, relJoin, ref1id);
           updateJoinedRec(viewRec, relRec, relid, this.rel.vols);
         }
@@ -313,7 +313,7 @@ function View(p){
   };
 
   function deleteJoin(model, rec, id, join, type){
-    //Logger.log('running deleteJoin('+model+', ' + rec + ', ' + id + ', ' + ', ' +join +', ' +type);
+    Logger.log('running deleteJoin('+model.class+', ' + rec + ', ' + id + ', ' + ', ' +join +', ' +type);
     rec[join] = ''; // delete join from record list
     model.sheet.updateCell(model.sheet.getRowNum(id), model.sheet.getColNum(join), '');//delete join from model
     if (type === 'rel'){
