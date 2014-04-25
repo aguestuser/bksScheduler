@@ -284,7 +284,7 @@ function View(p){
           ref1id = this.recordList[i][this.refs[1].idKey],
           relid = this.recordList[i][viewJoin],
           relRec = this.rel.view.getRecordFromId(relid);  
-        if (ref1id === undefined || ref1id === '' && relRec){ //delete joins if ref1 vals are null (ie if references to the entity joining the records has been deleted)
+        if (ref1id === undefined && relRec || ref1id === '' && relRec){ //delete joins if ref1 vals are null (ie if references to the entity joining the records has been deleted)
           deleteJoin(this.rel.view.model, relRec, relid, relJoin, 'rel');
           deleteJoin(this.model, viewRec, viewid, viewJoin, 'view');
         } else if (relRec) {
@@ -1120,13 +1120,11 @@ Logger.log('running sortByDate('+recs+')');
         logNoRecordsError();
       }
       // LOG RECORD LIST (for testing only)
-      // if(self.view.class === 'schedule'){
-      //   for (var i = 0; i < self.recordList.length; i++) {//log record list values
-      //     for (var j in self.recordList[i]){
-      //       Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
-      //     }
-      //   }        
-      // }
+      for (var i = 0; i < self.recordList.length; i++) {//log record list values
+        for (var j in self.recordList[i]){
+          Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
+        }
+      }        
       // //LOG REF NAMES AND IDS
       // //Logger.log('self.refs[0].names: ' + self.refs[0].names);
       // //Logger.log('self.refs[0].ids: ' + self.refs[0].ids);
