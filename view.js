@@ -12,6 +12,17 @@
 * - underscorejs for GAS Library; key: MGwgKN2Th03tJ5OdmlzB8KPxhMjh3Sh48
 */
 
+
+function testSaveEditsFromWeekly(){
+  saveEdits('weekly');
+};
+
+
+function testSaveEditsFromGrid(){
+  saveEdits('grid');
+};
+
+
 //*** VIEW CONSTRUCTOR FUNCTION ***//
 
 function View(p){
@@ -248,12 +259,12 @@ function View(p){
     return this;
   };
 
-  function cloneRecord(record){
-    var i = self.recordList.length +1;
-    self.recordList.push(record);
-    self.recordList[i].id = '';
-    this.writeNewRecordToModel(record, i);
-    return self.recordList[i];
+  cloneRecord = function(record, view){
+    var i = view.recordList.length;
+    view.recordList.push(record);
+    view.recordList[i].id = '';
+    view.writeNewRecordToModel(record, i);
+    return view.recordList[i];
   };
 
   this.refreshViews = function(instances){
@@ -298,51 +309,70 @@ function View(p){
         rec: null
       } 
     };
+    var cors = self.correspondences;
+    _.each(self.correspondences, function (cor){
+      if (cor.viewids.length == cor.relids.length){//if shift has 1-to-1 relationship to availability, write volatile data from each view rec to its joined rel rec
+        _.each(cor.viewids, function (vid){
+          var i = cor.viewids.indexOf(vid);
+          corToJoin(join, vid, cor.relids[i]);
+        });
+      } else if (self.view.class === 'schedule' && cor.viewids.length > cor.relids.length){
+        var dif = cor.viewids.length - cor.relids.length,
+          headEnd = cor.viewids.length - dif;
+          viewids = _.head(cor.viewids, headEnd),
+          newViewIds = _.tail(cor.viewids, headEnd);
 
-    if (self.view.class === 'schedule'){
-      _.each(self.correspondences, function (cor){
-        if (cor.viewids.length == 1 && cor.relids.length == 1){//if shift has 1-to-1 relationship to availability
-          setJoinParams(join, cor.viewids[0], cor.relids[0]);
-          updateJoins(join);//create new joins if necessary
-          updateJoinedRec(join, this.rel.vols);//write volatile data to joined rec
-          // updateJoins(this.model, viewRec, viewid, viewJoin, this.rel.view.model, relRec, relid, relJoin);
-          // updateJoinedRec(viewRec, relRec, viewid, this.rel.vols);
-        } else {
-          if (cor.relids.length > 1){//if shift corresponds to more than 1 availability, OVERWRITE (delete joins to old rel recs)
-            _.each(cor.relids, function(relid){
-              setJoinParams(join, cor.viewids[0], relid);
-              if(join.view.ref1id !== join.rel.ref0id){//if shift is associated with a different rider, delete the join between shift & this rider's availability
-                deleteJoin(join.rel, 'rel');
-                deleteJoin(join.view, 'view');
-              } else {//if shift is associated with same rider, create a new join (if necessary) and write volatile data to joined rel rec
-                updateJoins(join);
-                updateJoinedRec(join, this.rel.vols);
-              }
-            });
-          }
-          if (cor.viewids.length > 1){
-            var viewid = _.first(cor.viewids),
-              otherViewIds = _.rest(cor.viewids),
-              relid = _.first(cor.relids),
-              otherRelIds = _.rest(cor.relids),
-              relIndex = this.rel.view.getRlIndexFromRecordId(relid);
-            setJoinParams(join, viewid, relid));
-            updateJoins(join);//create new joins if necessary
-            updateJoinedRec(join, this.rel.vols);//write volatile data to joined rec
-            _.each(viewIds, function(viewid){
-              var relRec = cloneRecord(join.rel.rec);
-              relid = relRec.id;
-              setJoinParams(join, viewid, relid);
-              updateJoins(join);//create new joins if necessary
-              updateJoinedRec(join, this.rel.vols);//write volatile data to joined rec
-            });
-          }
-        }
+        _.each(viewids, function(vid){//write volatile data from existing view recs to existing rel recs
+          var i = viewids.indexOf(vid);
+          corToJoin(join, vid, cor.relids[i]);
+        });   
+
+        _.each(newViewIds, function(nvid){//write volatile data from new view recs to clones of existing rel rec
+          var relRec = cloneRecord(join.rel.rec, self.rel.view),
+            relid = relRec.id;
+          corToJoin(join, nvid, relid);
+        });
+
+      } else { // OVERWRITE old joins (in *all* cases for view.class === 'availability' & if class === 'schedule ' && cor.relids.length > cor.viewids.length)
+        var dif = cor.relids.length - cor.viewids.length,
+          headEnd = cor.relids.length - dif,  
+          newRelIds = _.head(cor.relids, headEnd),
+          oldRelIds = _.tail(cor.relids, headEnd);
+        
+        _.each(newRelIds, function(nrid){
+          var oldViewId = getOldViewIdFromNewRelId(nrid),
+            oldRelId = getOldRelIdFromOldViewId(oldViewId);
+          setJoinParams(join, oldViewId, oldRelId);
+          deleteJoins(join);
+          corToJoin(join, oldViewId, nrid);
+        });
+      }
+    });
+    return this;
+  };
+
+  function getOldViewIdFromNewRelId(nrid){
+    var relRec = _.find(self.rel.view.model.sheet.data, function(rec){
+        return rec.id == nrid;
+      }),
+      relRef0Id = relRec[self.rel.view.refs[0].idKey]
+      viewRec = _.find(self.recordList, function (rec){
+        return rec[self.refs[1].idKey] === relRef0Id;
       });
-    } else if (self.view.class === 'availability'){
-      
-    }
+    return viewRec.id;
+  };
 
+  function getOldRelIdFromOldViewId(viewid){
+    var row = _.find(self.rel.view.model.sheet.data, function(row){
+      return row[self.rel.view.rel.join] === viewid;
+    });
+    return row.id;
+  }
+
+  function corToJoin(join, viewid, relid){
+    setJoinParams(join, viewid, relid);
+    updateJoins(join);//create new joins if necessary
+    updateJoinedRec(join, self.rel.vols);//write volatile data to joined rec
   };
 
   function setJoinParams (join, viewid, relid){
@@ -354,7 +384,7 @@ function View(p){
     join.rel.joinid = viewid;
     join.rel.rec = self.rel.view.getRecordFromId(relid);
     join.view.ref0id = join.rel.rec[self.rel.view.refs[0].idKey];
-  }
+  };
 
   function hasJoin(rec, join){
     return (rec[join] === undefined || rec[join] === '') ? false : true;
@@ -364,8 +394,25 @@ function View(p){
     return (hasJoin(rec, join) && rec[join] !== joinid) ? true : false; 
   };
 
+  function deleteJoins(join){
+    deleteJoin(join.view, 'view');
+    deleteJoin(join.rel, 'rel');
+  };
+
+  function deleteJoin(j, type){//model, rec, id, join, type
+    //Logger.log('running deleteJoin('+model+', ' + rec + ', ' + id + ', ' + ', ' +join +', ' +type);
+    j.rec[j.join] = undefined; // delete join from record list
+    j.model.sheet.updateCell(j.model.sheet.getRowNum(j.id), j.model.sheet.getColNum(j.join), '');//delete join from model
+    if (type === 'rel'){
+      j.rec[self.refs[0].idKey] = undefined;//delete joined ref1id from rel record list (reference is to ref[0] because the view's ref0 correspondes to the rel's ref1)
+      j.model.sheet.updateCell(j.model.sheet.getRowNum(j.id), j.model.sheet.getColNum(self.refs[0].idKey), '');//delete joined ref1id from rel model
+      var status = self.rel.view.view.class === 'schedule' ? 'unassigned' : 'available';//set rel status attribute to defaul value
+      j.model.sheet.updateCell(j.model.sheet.getRowNum(j.id), j.model.sheet.getColNum('status'), status);
+    }
+  };
+
   function updateJoins(join){//viewRec, relRec
-    if (!hasJoin(join.view.rec, join.view.join){//create new join if not already joined
+    if (!hasJoin(join.view.rec, join.view.join)){//create new join if not already joined
       createJoin(join.view);
       createJoin(join.rel);
     } 
@@ -374,28 +421,20 @@ function View(p){
   function createJoin(j){//model, rec, viewid, relid, join
     var row = j.model.sheet.getRowNum(j.id), 
       col = j.model.sheet.getColNum(j.join);
-    rec[join] = j.joinid;
-    model.sheet.updateCell(row, col, j.joinid);
+    j.rec[j.join] = j.joinid;
+    j.model.sheet.updateCell(row, col, j.joinid);
   };
 
-  function deleteJoin(j, type){//model, rec, id, join, type
-    //Logger.log('running deleteJoin('+model+', ' + rec + ', ' + id + ', ' + ', ' +join +', ' +type);
-    j.rec[join] = undefined; // delete join from record list
-    j.model.sheet.updateCell(j.model.sheet.getRowNum(id), j.model.sheet.getColNum(join), '');//delete join from model
-    if (type === 'rel'){
-      j.rec[self.refs[0].idKey] = undefined;//delete joined ref1id from rel record list (reference is to ref[0] because the view's ref0 correspondes to the rel's ref1)
-      j.model.sheet.updateCell(j.model.sheet.getRowNum(id), j.model.sheet.getColNum(self.refs[0].idKey), '');//delete joined ref1id from rel model
-      var status = self.rel.view.view.class === 'schedule' ? 'unassigned' : 'available';//set rel status attribute to defaul value
-      j.model.sheet.updateCell(j.model.sheet.getRowNum(id), j.model.sheet.getColNum('status'), status);
-    }
-  };
+
 
   function updateJoinedRec(join, vols){//viewRec, relRec, id, vols
+    var sheet = join.rel.model.sheet,
+      id = join.rel.id;
     //Logger.log('running updatJoinedRec('+viewRec+', '+relRec+', '+id+', '+vols+')');
     for (var i = 0; i < vols.length; i++) {//overwrite rel values with volatile view values
       if (join.view.rec[vols[i]] !== join.rel.rec[vols[i]]){//match records on join id & overwrite rel records that don't match view records
         var val = join.view.rec[vols[i]] === undefined || join.view.rec[vols[i]] === '' ? '' : join.view.rec[vols[i]];
-        join.model.sheet.updateCell(join.model.sheet.getRowNum(id), join.model.sheet.getColNum(vols[i]), val);
+        sheet.updateCell(sheet.getRowNum(id), sheet.getColNum(vols[i]), val);
       }
     }
   };
@@ -462,38 +501,69 @@ function View(p){
     toast('Checking for conflicts...')
     var viewRl = this.recordsSortedByRef[1];
     var relRl = View.recordsSortedByRef[0];
-    _.each(viewRl[refId], function (viewRec){
-      _.each(relRl[refId], function (relRec){
-        if (matchOnDayAndPeriod(viewRec, relRec)) {
-          setCorrespondence(viewRec, relRec);
-          setConflict(viewRec, relRec); 
-        }
-      });
-    });
+    for (var refId in viewRl){
+      _.each(viewRl[refId], function (viewRec){
+        _.each(relRl[refId], function (relRec){
+          if (matchOnDayAndPeriod(viewRec, relRec)) {
+            setCorrespondence(viewRec, relRec);
+            setConflict(viewRec, relRec); 
+            // Logger.log('ITERATION of self.correspondences:');
+            // _.each(self.correspondences, function(cor){
+            //   for (var c in cor){
+            //     Logger.log('cor['+c+']:' + cor[c]);
+            //   }
+            // });
+          }
+        });
+      });      
+    }
+    concatOtherCorrespondences();
+    // Logger.log('FINAL self.correspondences: ');
+    // _.each(self.correspondences, function(cor){
+    //   for (var c in cor){
+    //     Logger.log('cor['+c+']:' + cor[c]);
+    //   }
+    // });
     Logger.log('finished running '+this.view.class+'.joinWith('+View.view.class+')');  
     return this;
+  };
+
+  function concatOtherCorrespondences(){
+    _.each(self.correspondences, function(cor){
+      cor.viewids = cor.viewids.concat(getOtherCorrespondences(self, cor.viewids[0], cor.relids[0])).dedupe();
+      cor.relids = cor.relids.concat(getOtherCorrespondences(self.rel.view, cor.relids[0], cor.viewids[0])).dedupe();
+    });
+  };
+
+  function getOtherCorrespondences(view, id, joinid){
+    var recs = view.model.sheet.data,
+      join = view.rel.join,
+      corRecs = _.filter(recs, function(rec){return rec[join] === joinid && rec[join] !== rec[id]}),
+      corIds = _.pluck(corRecs, 'id');
+    return corIds;
   };
 
   function setCorrespondence(viewRec, relRec){   
     Logger.log('running setCorrespondence('+viewRec+', '+relRec+')');
     self.correspondences = self.correspondences || [];
-    var viewMatch = _.find(self.correspondences, _.matches({viewid: viewRec.id}));//find any correspondence k/v pair that already contain the current viewRecs's id as a value
-      relMatch = _.find(self.correspondences, _.matches({relid: relRec.id}));//find any correspondence k/v pair that already contain the current viewRecs's id as a value
+    var viewMatch = _.find(self.correspondences, function(cor) {return _.contains(cor.viewids, viewRec.id)}),//find any correspondence k/v pair that already contain the current viewRecs's id as a value
+      relMatch = _.find(self.correspondences, function(cor) {return _.contains(cor.relids, relRec.id)});//find any correspondence k/v pair that already contain the current viewRecs's id as a value
     if (!viewMatch && !relMatch) {//if no such correspondences exist, create a new one
-      self.correspondences.push(viewid: [viewRec.id], relid: [relRec.id]);
-    } else {//if the view rec already corresponds to a rel rec, add the current rel rec to the array of recs the view rec corresponds with
+      self.correspondences.push({viewids: [viewRec.id], relids: [relRec.id]});
+    } else {//if the view rec already corresponds to a different rel rec, add the current rel rec to the array of recs the view rec corresponds with
       if (viewMatch && !_.contains(viewMatch.relids, relRec.id)) {
         viewMatch.relids.push(relRec.id);
       }
-      if (relMatch && !_.contains(relMatch.viewids, viewRec.id) {//if the rel rec already corresponds to a view rec, add the current view rec to the array of recs the rel rec corresponds with
-        viewMatch.relids.push(relRec.id);
+      if (relMatch && !_.contains(relMatch.viewids, viewRec.id)) {//if the rel rec already corresponds to a different view rec, add the current view rec to the array of recs the rel rec corresponds with
+        relMatch.viewids.push(viewRec.id);
       }                             
     }
+
   };
 
   function setConflict(viewRec, relRec){
-    self.conflicts = self.conflicts || [];
     if (relRec.status === 'not available' && viewRec.status !== 'confirmed'){
+      self.conflicts = self.conflicts || [];
       self.conflicts.push({viewid: viewRec.id, relid: relRec.id});
     }
   };
@@ -524,11 +594,10 @@ function View(p){
     // };
 
     //Logger.log('finished running getConflicts()');
-  };
 
   this.showConflicts = function(){
     //Logger.log('running .showConflicts()');
-    if (this.conflicts.length > 0){
+    if (this.conflicts){
       toast('Conflicts found! Highlighted rows conflict with ' + this.refs[1].class + ' ' + this.rel.view.view.class);
       handleConflicts();
     } else {
@@ -564,13 +633,15 @@ function View(p){
     //Logger.log('running handleNoConflicts()');
     //Logger.log('self.noConflicts.length: ' + self.noConflicts.length);
     _.each(self.correspondences, function(cor){
-      var sheet = self.view.sheet,
-        r1 = getRowFromRecordId(cor.viewid), 
-        c1 = self.view.sheet.col.first, 
-        r2 = 1,
-        c2 = self.view.sheet.col.getLast(),
-        range = sheet.g.getRange(r1, c1, r2, c2);
-      if(range.getBackground() == '#FF00FF'){range.setBackground('#FFFFFF');}
+      _.each(cor.viewids, function(id){
+        var sheet = self.view.sheet,
+          r1 = getRowFromRecordId(id), 
+          c1 = self.view.sheet.col.first, 
+          r2 = 1,
+          c2 = self.view.sheet.col.getLast(),
+          range = sheet.g.getRange(r1, c1, r2, c2);
+        if(range.getBackground() == '#FF00FF'){range.setBackground('#FFFFFF');}        
+      });
     });
   };
 
@@ -579,24 +650,26 @@ function View(p){
 
   //**ACCESSOR METHODS **//
 
-  function this.refreshModel = function(){
+  this.refreshModel = function(){
     this.model.sheet = new Sheet(this.view.sheet.class, this.view.sheet.instance);
   };
 
-  this.deleteRecord = function (id){
-    deleteFromList(this.recordList, id);
-    deleteFromList(this.model.sheet.data, id);
-    deleteFromList(this.cache.cellmap.sheet.data, id);
-    updateRange(this.model.sheet.data);
-    updateRange(this.cache.cellmap.data, id);
+  // this.deleteRecord = function (id){
+  //   this.recordList = deleteFromList(this.recordList, id);
+  //   this.model.sheet.data = deleteFromList(this.model.sheet.data, id);
+  //   this.cache.cellmap.sheet.data.
+  //   // deleteFromList(this.model.sheet.data, id);
+  //   // deleteFromList(this.cache.cellmap.sheet.data, id);
+  //   // updateRange(this.model.sheet.data);
+  //   // updateRange(this.cache.cellmap.data, id);
     
-    function deleteFromList(list, id){
-      list = _.reject(list, function (row){
-        _.isEqual(row, _.isWhere(list, {id: id}));
-      })
-    };
+  //   function deleteFromList(list, id){
+  //     return _.reject(list, function (row){
+  //       return row.id === id;
+  //     });
+  //   };
 
-  };
+  // };
 
   function updateRange(sheet){
     var range = toRange(sheet);
@@ -618,7 +691,7 @@ function View(p){
   };
 
   this.hasConflicts = function (){
-    return this.conflicts.length > 0 ? true : false;
+    return this.conflicts ? true : false;
   };
 
   function initRecordAccessors(){
@@ -1065,9 +1138,9 @@ function View(p){
       self.vols = self.view.gridType == 'times' ? [self.refs[1].idKey, 'start', 'end'] : [self.refs[1].idKey, 'status'];
     }
     //LOG VOLS (for testing) 
-    for (var i = 0; i < self.vols.length; i++) {
-      Logger.log('vols[i]: ' + self.vols[i]);     
-    }    
+    // for (var i = 0; i < self.vols.length; i++) {
+    //   Logger.log('vols[i]: ' + self.vols[i]);     
+    // }    
   };
   //** ^^^ INITIALIZE VOLATILES ^^^ **//
 
@@ -1173,14 +1246,14 @@ function View(p){
       } else if (self.recordList.length < 0) {
         logNoRecordsError();
       }
-      // LOG RECORD LIST (for testing only)
-      if(self.view.class === 'schedule'){
-        for (var i = 0; i < self.recordList.length; i++) {//log record list values
-          for (var j in self.recordList[i]){
-            Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
-          }
-        }        
-      }
+      //LOG RECORD LIST (for testing only)
+      // if(self.view.class === 'schedule'){
+      //   for (var i = 0; i < self.recordList.length; i++) {//log record list values
+      //     for (var j in self.recordList[i]){
+      //       Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
+      //     }
+      //   }        
+      // }
       // //LOG REF NAMES AND IDS
       // //Logger.log('self.refs[0].names: ' + self.refs[0].names);
       // //Logger.log('self.refs[0].ids: ' + self.refs[0].ids);
@@ -1304,7 +1377,7 @@ function View(p){
 
 
   function getVDFromSheetRow(row){
-    Logger.log('running getVDFromSheetRow');
+    // Logger.log('running getVDFromSheetRow');
     var vd = {id: row.id};
     for (var i = 0; i < self.vols.length; i++){
       var vol = self.vols[i];
@@ -1333,7 +1406,7 @@ function View(p){
   };
 
   function getVDFromRefStr(str, col, id){    
-    Logger.log('running getVDFromRefStr('+str+', '+col+', '+id+')');
+    // Logger.log('running getVDFromRefStr('+str+', '+col+', '+id+')');
     var code = str.slice(str.indexOf('-'), str.length).trim(),
       ref1Name = str.slice(0, str.indexOf('-')).trim(),
       idKey = self.refs[1].idKey,

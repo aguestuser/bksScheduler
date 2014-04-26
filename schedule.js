@@ -5,6 +5,50 @@
 
 //for testing, see: https://script.google.com/a/macros/bkshift.com/s/AKfycby3TGiZ_jVpfdy5b2nP6QZ8r6kAAWVjqaXqlm6GI8M/dev
 
+function createMenus() {//creates event triggers for calling functions
+    var menuEntries = [
+      {
+          name: 'Save Edits',
+          functionName: 'handleSaveEdits' 
+      },{        
+          name: 'Send Emails',
+          functionName: 'sendEmails'
+      },{        
+          name: 'Update Calendar',
+          functionName: 'updateCalendar'
+      },{        
+          name: 'Refresh View',
+          functionName: 'initRefreshViewUi'
+      },{
+          name: 'Clone Last Week',
+          functionName: 'initCloneLastWeekUi' 
+      },{
+          name: 'Create Records',
+          functionName: 'initCreateRecordsUi' 
+      },{
+          name: 'Delete Shift',
+          functionName: 'initDeleteShiftUi'
+      }
+    ];
+    SpreadsheetApp.getActiveSpreadsheet().addMenu("Functions", menuEntries);
+};
+
+function initRefreshViewUi(){
+  initUi('refreshView');
+};
+
+function initCloneLastWeekUi(){
+  initUi('cloneLastWeek');
+};
+
+function initCreateRecordsUi(){
+  initUi('createRecords');
+};
+
+function handleSaveEdits(){
+  saveEdits(getWsName());
+};
+
 //*** vvv UI APP vvv ***//
 
 function initUi(serverHandler){//initiate UI dialog
@@ -86,43 +130,39 @@ function initUi(serverHandler){//initiate UI dialog
   SpreadsheetApp.getActiveSpreadsheet().show(app);
 };
 
+function initDeleteShiftUi(){//initiate UI dialog
+  // Logger.log('running initUI('+serverHandler+')');
+  var app = UiApp.createApplication().setTitle('Delete Shift').setWidth(200).setHeight(200),//construct ui app
+    panel = app.createVerticalPanel(),//construct panel to hold user input elements
+    shiftLabel = app.createLabel('Shift Id').setId('shift'),//construct ui elements to retrive values to pass to submmitHandler
+    shift = app.createTextBox().setName('shift').setId('shift').setValue(''),
+    submitHandler = app.createServerHandler('deleteShift')//define callback
+      .setId('submitHandler')
+      .addCallbackElement(shift),
+    submit = app.createButton('Submit!').addClickHandler(submitHandler);  //define button to trigger callback
+  
+  panel.add(shiftLabel).add(shift);//add app elements to each other
+  panel.add(submit);
+  app.add(panel);
+
+  SpreadsheetApp.getActiveSpreadsheet().show(app);
+};
+
+
 //** ^^ UI APP ^^ **//
 
-function createMenus() {//creates event triggers for calling functions
-    var menuEntries = [
-      {
-          name: 'Save Edits',
-          functionName: 'saveEdits' 
-      },{        
-          name: 'Send Emails',
-          functionName: 'sendEmails'
-      },{        
-          name: 'Update Calendar',
-          functionName: 'updateCalendar'
-      },{        
-          name: 'Refresh View',
-          functionName: 'initRefreshViewUi'
-      },{
-          name: 'Clone Last Week',
-          functionName: 'initCloneLastWeekUi' 
-      },{
-          name: 'Create Records',
-          functionName: 'initCreateRecordsUi' 
-      },
-    ];
-    SpreadsheetApp.getActiveSpreadsheet().addMenu("Functions", menuEntries);
-};
-
-function initRefreshViewUi(){
-  initUi('refreshView');
-};
-
-function initCloneLastWeekUi(){
-  initUi('cloneLastWeek');
-};
-
-function initCreateRecordsUi(){
-  initUi('createRecords');
+function deleteShift(e){
+  var app = UiApp.getActiveApplication(),//open ui instance
+    p = e.parameter,
+    schedule = new View({
+      view: {class: 'schedule', instance: getWsName(), init: 'fromRange'},
+      model: {class: 'shifts', instance: 'index'},
+      refs: [{class: 'restaurants', instance: 'info'}, {class: 'riders', instance:'info'}]
+    });
+  Logger.log(p.shift);
+  schedule
+    .deleteRecord(Number(p.shift))
+    .refreshViews(['grid', 'weekly', 'update']);
 };
 
 function refreshView(e){
@@ -186,10 +226,10 @@ function createRecords(e){
   return app.close();
 };
 
-function saveEdits(){
+function saveEdits(ws){
 
   var schedule = new View({
-      view: {class: 'schedule', instance: getWsName(), init: 'fromRange'},
+      view: {class: 'schedule', instance: ws, init: 'fromRange'},
       model: {class: 'shifts', instance: 'index'},
       refs: [{class: 'restaurants', instance: 'info'}, {class: 'riders', instance:'info'}]
     });

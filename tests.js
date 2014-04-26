@@ -21,6 +21,17 @@ function tests(){
   // addTest();
 };
 
+function testSaveEditsFromGrid(){
+  saveEdits('grid');
+};
+
+function testSaveEditsFromWeekly(){
+  saveEdits('weekly');
+};
+
+function testSaveEditsFromUpdate(){
+  saveEdits('update');
+};
 
 //** TESTS **//
 

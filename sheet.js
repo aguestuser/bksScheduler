@@ -36,7 +36,8 @@ function Sheet (ss, ws){
       availabilityGridMaps: '0AkfgEUsp5QrAdHloc1pSM0YtQjBxdjV2Qktrdzd4bHc',
       emailElements: '0AkfgEUsp5QrAdDBqR1VRNVJzZ3RPTU5jNGNPUkJYY1E',
       riderView: '0AkfgEUsp5QrAdENLcXVJbjN1SERaQ3Z3THh1THNuMVE',
-      restaurantView: '0AkfgEUsp5QrAdHNLSGF4QTNmeUNRc3NyeTBUOTMyRkE'
+      restaurantView: '0AkfgEUsp5QrAdHNLSGF4QTNmeUNRc3NyeTBUOTMyRkE',
+      'Rider Availability Form (Responses)': '0AkfgEUsp5QrAdFVMY2tPZFRSRmU2bms2X0hoUVJFa3c'
     },
     // key = testingKeys[ss];
     key = liveKeys[ss];
@@ -80,7 +81,6 @@ function Sheet (ss, ws){
   };
 
   this.updateCell = function(row, col, val){
-    Logger.log('running '+this.class+'.'+this.instance+'updateCell('+row+', '+col+', '+val+')')
     this.g.getRange(row, col).setValue(val);
     return this;
   };
@@ -455,5 +455,28 @@ function getRefIdsFromRecords(records, refName){
 function getRefIdFromRecord(record, refName){
   return record[refName + 'id'];
 };
+
+function toRange(recs, headers){
+  var range = [];
+  _.each(recs, function (rec){
+    var row = [];
+    _.each(headers, function (header){
+      row.push(rec[header] || '');
+    });
+    range.push(row);
+  });
+  return range;
+};
+
+// function toRange(rec, header)
+//   var range = [];
+//   for (var i = 0; i < headers.length; i++) {
+//     var header = headers[i];
+//     range.push(rec[header] === undefined ? '' : rec[header]);
+//   }
+//   return range;
+// };
+
+var _ = Underscore.load();
 
 //* ^^^ UTILITY FUNCTIONS ^^^ *//
