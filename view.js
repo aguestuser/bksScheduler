@@ -83,20 +83,25 @@ function View(p){
     sheet
       .clearRange()
       .setRange(range);
-    if (this.view.type === 'grid'){
-      sheet.g.sort(1);
-    } else {
-      sheet.g
-        .sort(sheet.getColNum('start'))
-        .sort(sheet.getColNum('date'));
-    }
+
     this.view.sheet = new Sheet(this.view.class, this.view.instance);
+    sheet = this.view.sheet;
+    
     if (this.view.type == 'grid' && this.gridMap !== undefined) {
       refreshRowMap(getRMFromGridMap);
       refreshCellMap();
       // highlightDoubleBookings();
-      appendGridMetaData();
+      appendColSums(sheet);
+      sheet.g.sort(1);
+      appendDate(sheet);
+    } else if(this.view.type === 'list'){
+      sheet.g
+        .sort(sheet.getColNum('start'))
+        .sort(sheet.getColNum('date'));
     }
+    
+    this.view.sheet = new Sheet(this.view.class, this.view.instance);
+
     return this;
   };
 
@@ -113,74 +118,78 @@ function View(p){
   //   }
   // }
 
-  function appendGridMetaData(){
-    appendDate(self.view.sheet);
-    if (self.view.class == 'schedule'){appendColSums(self.view.sheet);}
 
-    function appendDate(sheet){
-      var range = sheet.g.getRange(sheet.row.getLast() + 2, 1),
-        dateStr = self.dates.weekMap.mon.getFormattedDate() + ' - ' + self.dates.weekMap.sun.getFormattedDate();
-      range.setValue('Week: ' + dateStr);
-      range.setBackground('#d8d8d8');
-    };
+function appendDate(sheet){
+  var range = sheet.g.getRange(sheet.row.getLast(), 1),
+    dateStr = self.dates.weekMap.mon.getFormattedDate() + ' - ' + self.dates.weekMap.sun.getFormattedDate();
+  range.setValue('Week: ' + dateStr);
+  range.setBackground('#d8d8d8');
+};
 
-    function appendColSums(sheet){
-      var range = sheet.g.getRange(sheet.row.first, 16, self.view.sheet.data.length + 2, 5),
-        arr = [];
-      for (var i = 0; i < self.view.sheet.data.length; i++) {
-        var row = i + self.view.sheet.row.first;
-        if (self.view.class == 'schedule'){
-          var ref0id = getRef0IdFromRow(row), 
-            normalShifts = 0, billedNormalShifts = 0, extraShifts = 0, shifts = 0, revenue = 0;
-          if (ref0id !== 27){//don't charge for Kulushkat
-            normalShifts = getNormalShifts(ref0id),
-            billedNormalShifts = normalShifts > 10 ? 10 : normalShifts,
-            extraShifts = getExtraShifts(ref0id),
-            shifts = normalShifts + extraShifts,
-            revenue = 10*billedNormalShifts + 5*extraShifts;
-          }
-          arr.push([normalShifts, extraShifts, billedNormalShifts, shifts, revenue]);        
-        } else if (self.view.class == 'availability'){
-          //sum some things! :)
-        }
-      };
-      arr.push(['','','','','']);
-      arr.push(['=sum(p2:p'+(self.view.sheet.data.length+1)+')', '=sum(q2:q'+(self.view.sheet.data.length+1)+')', '=sum(r2:r'+(self.view.sheet.data.length+1)+')', '=sum(s2:s'+(self.view.sheet.data.length+1)+')', '=sum(t2:t'+(self.view.sheet.data.length+1)+')']);
-      range.setFormulas(arr);
-    };
-
-    function getRef0IdFromRow(row){
-      var rowmap = self.cache.rowmap.sheet.data;
-      for (var i = 0; i < rowmap.length; i++) {
-        if (rowmap[i].row === row){
-          return rowmap[i].ref0id;
-        }  
-      }
-    };
-
-    function getNormalShifts(ref0id){
-      var recs = self.recordsSortedByRef[0][ref0id], count = 0;
-      for (var i = 0; i < recs.length; i++) {
-        if (recs[i].billing === 'normal' || recs[i].billing === 'extra rider emergency'){
-          count++;
-        } 
-      }
-      return count;
-    };
-
-    function getExtraShifts(ref0id){
-      Logger.log('running getNormalShifts('+ref0id+')')
-      var recs = self.recordsSortedByRef[0][ref0id], count = 0;
-      for (var i = 0; i < recs.length; i++) {
-        if (recs[i].billing === 'extra rider'){
-          count++;
-        } 
-      }
-      return count;
-    };
-
-
+function appendColSums(sheet){
+  var r1 =  sheet.row.first,
+    c1 = 16, 
+    r2 = self.view.sheet.data.length + 2, 
+    c2 = 5;
+    range = sheet.g.getRange(r1, c1, r2, c2),
+    arr = [];
+  for (var i = 0; i < self.refs[0].ids.length; i++) {
+    var row = i + self.view.sheet.row.first;
+    if (self.view.class == 'schedule'){
+      var ref0id = getRef0IdFromRow(row),
+        normalShifts = '', billedNormalShifts = '', extraShifts = '', shifts = '', revenue 
+        normalShifts = getNormalShifts(ref0id),
+        billedNormalShifts = normalShifts > 10 ? 10 : normalShifts,
+        extraShifts = getExtraShifts(ref0id),
+        shifts = normalShifts + extraShifts,
+        revenue = ref0id == 27 ? 0 : 10*billedNormalShifts + 5*extraShifts;
+        if (ref0id == 27){//don't charge Kulushkat
+          billedNormalShifts = 0;
+          revenue = 0;
+        }          
+      arr.push([normalShifts, extraShifts, billedNormalShifts, shifts, revenue]);
+    } else if (self.view.class == 'availability'){
+      //sum some things! :)
+    }
   };
+  arr.push(['','','','','']);
+  arr.push(['=sum(p2:p'+(self.view.sheet.data.length+1)+')', '=sum(q2:q'+(self.view.sheet.data.length+1)+')', '=sum(r2:r'+(self.view.sheet.data.length+1)+')', '=sum(s2:s'+(self.view.sheet.data.length+1)+')', '=sum(t2:t'+(self.view.sheet.data.length+1)+')']);
+  range.setFormulas(arr);
+};
+
+function getRef0IdFromRow(row){
+  var rowmap = self.cache.rowmap.sheet.data;
+  for (var i = 0; i < rowmap.length; i++) {
+    if (rowmap[i].row === row){
+      return rowmap[i].ref0id;
+    }  
+  }
+};
+
+function getNormalShifts(ref0id){
+  var recs = _.filter(self.recordList, function(rec){return rec[self.refs[0].idKey] === ref0id}),
+    count = 0;
+  // recordsSortedByRef[0][ref0id], count = 0;
+  for (var i = 0; i < recs.length; i++) {
+    if (recs[i].billing === 'normal' || recs[i].billing === 'extra rider emergency'){
+      count++;
+    } 
+  }
+  return count;
+};
+
+function getExtraShifts(ref0id){
+  Logger.log('running getNormalShifts('+ref0id+')')
+  var recs = self.recordsSortedByRef[0][ref0id], count = 0;
+  for (var i = 0; i < recs.length; i++) {
+    if (recs[i].billing === 'extra rider'){
+      count++;
+    } 
+  }
+  return count;
+};
+
+
 
   this.writeToModel = function(){
     Logger.log('Running '+ this.view.class +'.writeToModel()!')
@@ -1011,9 +1020,9 @@ Logger.log('running sortByDate('+recs+')');
       self.vols = self.view.gridType == 'times' ? [self.refs[1].idKey, 'start', 'end'] : [self.refs[1].idKey, 'status'];
     }
     //LOG VOLS (for testing) 
-    for (var i = 0; i < self.vols.length; i++) {
-      Logger.log('vols[i]: ' + self.vols[i]);     
-    }    
+    // for (var i = 0; i < self.vols.length; i++) {
+    //   Logger.log('vols[i]: ' + self.vols[i]);     
+    // }    
   };
   //** ^^^ INITIALIZE VOLATILES ^^^ **//
 
@@ -1248,18 +1257,18 @@ Logger.log('running sortByDate('+recs+')');
 
 
   function getVDFromSheetRow(row){
-    Logger.log('running getVDFromSheetRow');
+    Logger.log('running getVDFromSheetRow('+row.id+')');
     var vd = {id: row.id};
     for (var i = 0; i < self.vols.length; i++){
       var vol = self.vols[i];
-      Logger.log('vol: ' + vol);
+      // Logger.log('vol: ' + vol);
       if (isRef(vol)){//if attr is a ref, lookup ref id from name
         var nameKey = vol.slice(0,-2),
           class = nameKey + 's';
         if (row[nameKey] === undefined){//avoid ref lookups for empty cells
           vd[vol] = '';
         } else {
-          Logger.log('doing ref lookup for ' + row[nameKey]);
+          // Logger.log('doing ref lookup for ' + row[nameKey]);
           vd[vol] = getRefIdFromName(getRefIndexFromClass(class), row[nameKey]); 
           Logger.log('vd['+vol+']: ' + vd[vol]);
           if (vd[vol] === undefined){//handle errors generated by trying to lookup non-existent names
