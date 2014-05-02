@@ -91,7 +91,9 @@ function View(p){
       refreshRowMap(getRMFromGridMap);
       refreshCellMap();
       // highlightDoubleBookings();
-      appendColSums(sheet);
+      if (this.view.class == 'schedule'){
+        appendColSums(sheet);        
+      }
       sheet.g.sort(1);
       appendDate(sheet);
     } else if(this.view.type === 'list'){
@@ -120,7 +122,8 @@ function View(p){
 
 
 function appendDate(sheet){
-  var range = sheet.g.getRange(sheet.row.getLast(), 1),
+  var row = self.view.class === 'schedule' ? sheet.row.getLast() : sheet.row.getLast() + 2;
+    range = sheet.g.getRange(row, 1),
     dateStr = self.dates.weekMap.mon.getFormattedDate() + ' - ' + self.dates.weekMap.sun.getFormattedDate();
   range.setValue('Week: ' + dateStr);
   range.setBackground('#d8d8d8');
@@ -130,30 +133,28 @@ function appendColSums(sheet){
   var r1 =  sheet.row.first,
     c1 = 16, 
     r2 = self.view.sheet.data.length + 2, 
-    c2 = 5;
+    c2 = 6;
     range = sheet.g.getRange(r1, c1, r2, c2),
     arr = [];
   for (var i = 0; i < self.refs[0].ids.length; i++) {
-    var row = i + self.view.sheet.row.first;
-    if (self.view.class == 'schedule'){
-      var ref0id = getRef0IdFromRow(row),
-        normalShifts = '', billedNormalShifts = '', extraShifts = '', shifts = '', revenue 
-        normalShifts = getNormalShifts(ref0id),
-        billedNormalShifts = normalShifts > 10 ? 10 : normalShifts,
-        extraShifts = getExtraShifts(ref0id),
-        shifts = normalShifts + extraShifts,
-        revenue = ref0id == 27 ? 0 : 10*billedNormalShifts + 5*extraShifts;
-        if (ref0id == 27){//don't charge Kulushkat
-          billedNormalShifts = 0;
-          revenue = 0;
-        }          
-      arr.push([normalShifts, extraShifts, billedNormalShifts, shifts, revenue]);
-    } else if (self.view.class == 'availability'){
-      //sum some things! :)
-    }
+    var row = i + self.view.sheet.row.first,
+      ref0id = getRef0IdFromRow(row),
+      normalShifts = '', billedNormalShifts = '', extraShifts = '', extraEmergencyShifts ='', shifts = '', revenue = '';
+    normalShifts = getNormalShifts(ref0id),
+    emergencyExtraShifts = getEmergencyExtraShifts(ref0id),
+    billedNormalShifts = normalShifts > 10 ? 10  + emergencyExtraShifts : normalShifts + emergencyExtraShifts,
+    extraShifts = getExtraShifts(ref0id),
+    shifts = normalShifts + extraShifts,
+    revenue = ref0id == 27 ? 0 : 10*billedNormalShifts + 5*extraShifts;
+    if (ref0id == 27){//don't charge Kulushkat
+      billedNormalShifts = 0;
+      revenue = 0;
+    }         
+    arr.push([normalShifts, emergencyExtraShifts, billedNormalShifts, extraShifts, shifts, revenue]);
   };
-  arr.push(['','','','','']);
-  arr.push(['=sum(p2:p'+(self.view.sheet.data.length+1)+')', '=sum(q2:q'+(self.view.sheet.data.length+1)+')', '=sum(r2:r'+(self.view.sheet.data.length+1)+')', '=sum(s2:s'+(self.view.sheet.data.length+1)+')', '=sum(t2:t'+(self.view.sheet.data.length+1)+')']);
+  
+  arr.push(['','','','','','']);
+  arr.push(['=sum(p2:p'+(self.view.sheet.data.length+1)+')', '=sum(q2:q'+(self.view.sheet.data.length+1)+')', '=sum(r2:r'+(self.view.sheet.data.length+1)+')', '=sum(s2:s'+(self.view.sheet.data.length+1)+')', '=sum(t2:t'+(self.view.sheet.data.length+1)+')', '=sum(u2:u'+(self.view.sheet.data.length+1)+')']);
   range.setFormulas(arr);
 };
 
@@ -167,11 +168,10 @@ function getRef0IdFromRow(row){
 };
 
 function getNormalShifts(ref0id){
-  var recs = _.filter(self.recordList, function(rec){return rec[self.refs[0].idKey] === ref0id}),
-    count = 0;
+  var recs = self.recordsSortedByRef[0][ref0id], count = 0;
   // recordsSortedByRef[0][ref0id], count = 0;
   for (var i = 0; i < recs.length; i++) {
-    if (recs[i].billing === 'normal' || recs[i].billing === 'extra rider emergency'){
+    if (recs[i].billing === 'normal'){
       count++;
     } 
   }
@@ -179,7 +179,7 @@ function getNormalShifts(ref0id){
 };
 
 function getExtraShifts(ref0id){
-  Logger.log('running getNormalShifts('+ref0id+')')
+  Logger.log('running getExtraShifts('+ref0id+')')
   var recs = self.recordsSortedByRef[0][ref0id], count = 0;
   for (var i = 0; i < recs.length; i++) {
     if (recs[i].billing === 'extra rider'){
@@ -189,6 +189,16 @@ function getExtraShifts(ref0id){
   return count;
 };
 
+function getEmergencyExtraShifts(ref0id){
+  Logger.log('running getExtraShifts('+ref0id+')')
+  var recs = self.recordsSortedByRef[0][ref0id], count = 0;
+  for (var i = 0; i < recs.length; i++) {
+    if (recs[i].billing === 'extra rider emergency'){
+      count++;
+    } 
+  }
+  return count;
+};
 
 
   this.writeToModel = function(){
@@ -892,7 +902,13 @@ Logger.log('running sortByDate('+recs+')');
       '-n': 'not available',
       '-e': 'emergency only'
     }
-    return statuses[code];
+    if (code in statuses){
+      return statuses[code];
+    } else {
+      error = 'ERROR: You tried to save a record with an invalid code: '+code;
+      Logger.log(error);
+      toast (error);
+    }
   };
 
   function getErrorStr(errorArr){
@@ -1286,7 +1302,7 @@ Logger.log('running sortByDate('+recs+')');
   };
 
   function getVDFromRefStr(str, col, id){    
-    // Logger.log('running getVDFromRefStr('+str+', '+col+', '+id+')');
+    Logger.log('running getVDFromRefStr('+str+', '+col+', '+id+')');
     var code = str.slice(str.indexOf('-'), str.length).trim(),
       ref1Name = str.slice(0, str.indexOf('-')).trim(),
       idKey = self.refs[1].idKey,
