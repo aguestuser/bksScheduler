@@ -2058,3 +2058,79 @@ Logger.log('running sortByDate('+recs+')');
   //* ^^^ UPDATE CALENDAR ^^^ *//
 
 };
+
+View.prototype.createInvoices = function(){
+  var shiftsByRest = self.recordsSortedByRef[0],
+    now = new Date();
+  _.each(shiftsByRest, function(shifts, rest)){
+    _.each(shifts, function(shift, rest){
+      var invoice = new Invoice(rest, self.dates.weekMap, now, shift);
+      invoice.appendRow();
+      invoice.print();
+    });  
+  };
+  
+};
+
+
+function Invoice (restaurant, week, dateIssued, shifts){
+  
+  this.restaurant = restaurant; // Restaurant
+  this.week = self.dates.week; // Week
+  this.dateIssued = date; // Date
+  this.shifts = self.recordsSortedByRef[0]; // arr of Shifts belonging to this.restaurant during this.week
+  this.charges = new Charges(shifts);
+  this.paid =  false;// bool
+  this.AmountPaid = 0; // num
+
+};
+
+function Charges(shifts){
+  
+  var billings = _.pluck(shifts),
+    counts = getCounts(billings),
+    dif = getDif(counts);
+
+  this.fees = getFees(shifts); // num
+  
+  this.discount = dif*10;// num
+  this.revenue =  this.fees - this.discount;// num
+  this.tax = this.revenue * .08875; // num
+  this.charge = this.revenue + this.tax; //num
+  this.balance = getBalance(restaurant); // num
+  this.total_owed =  this.charge + this.restaurant;// num
+
+  function getCounts(billings){
+    return _.countBy(billings, function(b){
+        if (b === 'normal'){return 'normal';}
+        if (b === 'extra rider'){return 'extra';}
+        if (b === 'extra rider emergency'){return 'extraEmer'};
+      });
+  };
+
+  function getDif(counts){
+    return counts.normal > 10 ? counts.normal - 10 : 0;
+  };
+
+  function getFees(shifts){//input: array of billings, output: num
+    return counts.normal*10 - dif + counts.extraEmer*10 + counts.extra*5;
+  };
+};
+
+function getBalance(restaurant){
+  var balances = new Sheet('balances', 'index');
+  return _.findWhere(balances, {id: restaurant.id});
+};
+
+
+
+function Payment(){}
+  this.restaurant = restaurant; //Restaurant
+  this.amountPaid = amountPaid; //num
+  this.paymentMethod = paymentMethod; //paymentMethods.enum
+}
+
+function PaymentMethods(){
+  this.creditCard = 'creditCard';
+
+};
