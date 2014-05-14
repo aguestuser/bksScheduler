@@ -6,13 +6,13 @@
 
 function initUi(serverHandler){//initiate UI dialog
 
-  Logger.log('running initUI('+serverHandler+')');
+  // Logger.log('running initUI('+serverHandler+')');
   //get sheet and sheet index to determine view to pass to click handler
   var ss = SpreadsheetApp.getActiveSpreadsheet().getName(),
     ws = SpreadsheetApp.getActiveSheet().getName();
     Logger.log('ss: ' + ss);
     Logger.log('ws: ' + ws);
-    sheet = new Sheet(ss, ws),
+    sheet = new Sheet(getSsKey(ss), ws),
     ref1 = ss == 'schedule' ? 'riders' : 'restaurants',
   //retrieve view's current start and end dates from sheet data
     curStart = new Date().getWeekStart(),

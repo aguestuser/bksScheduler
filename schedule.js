@@ -15,7 +15,7 @@ function initUi(serverHandler){//initiate UI dialog
     ws = SpreadsheetApp.getActiveSheet().getName();
     Logger.log('ss: ' + ss);
     Logger.log('ws: ' + ws);
-    sheet = new Sheet(ss, ws),
+    sheet = new Sheet(getSsKey(ss), ws),
     ref1 = ss == 'schedule' ? 'riders' : 'restaurants',
   //retrieve view's current start and end dates from sheet data
     curStart = new Date().getWeekStart(),
@@ -108,7 +108,10 @@ function createMenus() {//creates event triggers for calling functions
       },{
           name: 'Create Records',
           functionName: 'initCreateRecordsUi' 
-      },
+      }, {
+          name: 'Create Invoices',
+          functionName: 'createInvoices' 
+      }
     ];
     SpreadsheetApp.getActiveSpreadsheet().addMenu("Functions", menuEntries);
 };

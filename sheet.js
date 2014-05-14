@@ -3,60 +3,54 @@
 // See http://www.gnu.org/licenses/gpl-3.0.txt for terms of the license.
 
 //*CONSTRUCT SHEET OBJECTS
-function Sheet (ss, ws){
-  // Logger.log('creating new Sheet('+ss+', '+ws+')');
-  var self = this,
-    testingKeys = {
-      sheets: '0AkfgEUsp5QrAdFVXX0JMSjFIYWxXdlBZQ1NtRFVHVEE',
-      riders: '0AkfgEUsp5QrAdE9qTFg3bVlCTWY1WHc2WDJ4QUpFU2c',
-      restaurants: '0AkfgEUsp5QrAdFZ2RldES0l6ZDJCY0NTaFFtZFh6Znc',
-      shifts: '0AkfgEUsp5QrAdHJMNWRVNkl0MmpRWEgzUk01NWtYNFE',
-      availabilities: '0AkfgEUsp5QrAdGR2UXVyNGNlUGtFLUc0Qmd1MU10bFE',
-      schedule: '0AkfgEUsp5QrAdEl2SUxRZWllQjFscW5kS3hIcE1JY3c',
-      scheduleParams: '0AkfgEUsp5QrAdDZKY3VsZGJPOWR5TmE2Z2phbWZLM1E',
-      scheduleGridMaps: '0AkfgEUsp5QrAdEp2T0dmTGdncERNNEFXbUtNeDFENGc',
-      availability: '0AkfgEUsp5QrAdGMxekRkcUhKajBEX3Y5QmZtdFc0QkE',
-      availabilityParams: '0AkfgEUsp5QrAdHpQUUl2Y2dUcy1Ma3V5cGRMM1E5bUE',
-      availabilityGridMaps: '0AkfgEUsp5QrAdDVGMUQyY2w1bmdVX2VvdnM2dDhwY3c',
-      emailElements: '0AkfgEUsp5QrAdElMUmVsRjJiOFNFcFV2ZzRUOXhWZ2c',
-      riderView: '0AkfgEUsp5QrAdHFXSmlyQXpRT0d2WlJHVDl3d3ZwLWc',
-      restaurantView: '0AkfgEUsp5QrAdEpwR0l0cUo1OHFrNFE1YVFpT0NmVnc'
-    },
-    liveKeys = {
-      sheets: '0AkfgEUsp5QrAdEI1T09ZUDFDY1Y2bE1xNzFyZTRnNnc',
-      riders: '0AkfgEUsp5QrAdEt2eU9PcWhKbGVoUzlOS2RkU2RxMEE',
-      restaurants: '0AkfgEUsp5QrAdFJyOW9RMjk5M2FNMXI4bmJBMzMwWFE',
-      shifts: '0AkfgEUsp5QrAdEdJc3BmMEt0TXFTdmVHY1cyWHdMTFE',
-      availabilities: '0AkfgEUsp5QrAdEdvSWQ0eVRMZmR1RXZRRW13LWY0ZEE',
-      schedule: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
-      scheduleParams: '0AkfgEUsp5QrAdHp6Q2dES0Z5Tm9YOGZsSWRnUEFuX0E',
-      scheduleGridMaps: '0AkfgEUsp5QrAdEE4eUhDT2RnNmlwRnQ0dkRsSHZlS3c',
-      availability: '0AkfgEUsp5QrAdG54d2VpakNXZEFsS05yRjByQmxwbmc',
-      availabilityParams: '0AkfgEUsp5QrAdHBqa2tkTXlwVnBoY0M5cmxrOUtRMVE',
-      availabilityGridMaps: '0AkfgEUsp5QrAdHloc1pSM0YtQjBxdjV2Qktrdzd4bHc',
-      emailElements: '0AkfgEUsp5QrAdDBqR1VRNVJzZ3RPTU5jNGNPUkJYY1E',
-      riderView: '0AkfgEUsp5QrAdENLcXVJbjN1SERaQ3Z3THh1THNuMVE',
-      restaurantView: '0AkfgEUsp5QrAdHNLSGF4QTNmeUNRc3NyeTBUOTMyRkE'
-    },
-    // key = testingKeys[ss];
-    key = liveKeys[ss];
 
-  // function getKey(ss){
-  //   //**vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-  //   // var sheets = SpreadsheetApp.openById('0AkfgEUsp5QrAdEI1T09ZUDFDY1Y2bE1xNzFyZTRnNnc').getSheetByName('index'),//<<---LIVE edit this key to match key for join table containing ss names & keys for project
-  //   var sheets = SpreadsheetApp.openById('0AkfgEUsp5QrAdFVXX0JMSjFIYWxXdlBZQ1NtRFVHVEE').getSheetByName('index'),//<<---TESTING
-  //   //**^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //     keys = getRowsData(sheets, sheets.getRange(2, 1, sheets.getLastRow(), 2));
-  //   for (var i = 0; i < keys.length; i++) {
-  //     if (keys[i].ss == ss) {
-  //       return keys[i].key;
-  //     }
-  //   }
-  // };
+function getSsKey(ssName){
+  // Logger.log('running getSsKey('+ssName+')')
+  var testingKeys = {
+    sheets: '0AkfgEUsp5QrAdFVXX0JMSjFIYWxXdlBZQ1NtRFVHVEE',
+    riders: '0AkfgEUsp5QrAdE9qTFg3bVlCTWY1WHc2WDJ4QUpFU2c',
+    restaurants: '0AkfgEUsp5QrAdFZ2RldES0l6ZDJCY0NTaFFtZFh6Znc',
+    shifts: '0AkfgEUsp5QrAdHJMNWRVNkl0MmpRWEgzUk01NWtYNFE',
+    availabilities: '0AkfgEUsp5QrAdGR2UXVyNGNlUGtFLUc0Qmd1MU10bFE',
+    schedule: '0AkfgEUsp5QrAdEl2SUxRZWllQjFscW5kS3hIcE1JY3c',
+    scheduleParams: '0AkfgEUsp5QrAdDZKY3VsZGJPOWR5TmE2Z2phbWZLM1E',
+    scheduleGridMaps: '0AkfgEUsp5QrAdEp2T0dmTGdncERNNEFXbUtNeDFENGc',
+    availability: '0AkfgEUsp5QrAdGMxekRkcUhKajBEX3Y5QmZtdFc0QkE',
+    availabilityParams: '0AkfgEUsp5QrAdHpQUUl2Y2dUcy1Ma3V5cGRMM1E5bUE',
+    availabilityGridMaps: '0AkfgEUsp5QrAdDVGMUQyY2w1bmdVX2VvdnM2dDhwY3c',
+    emailElements: '0AkfgEUsp5QrAdElMUmVsRjJiOFNFcFV2ZzRUOXhWZ2c',
+    riderView: '0AkfgEUsp5QrAdHFXSmlyQXpRT0d2WlJHVDl3d3ZwLWc',
+    restaurantView: '0AkfgEUsp5QrAdEpwR0l0cUo1OHFrNFE1YVFpT0NmVnc'
+  },
+  liveKeys = {
+    sheets: '0AkfgEUsp5QrAdEI1T09ZUDFDY1Y2bE1xNzFyZTRnNnc',
+    riders: '0AkfgEUsp5QrAdEt2eU9PcWhKbGVoUzlOS2RkU2RxMEE',
+    restaurants: '0AkfgEUsp5QrAdFJyOW9RMjk5M2FNMXI4bmJBMzMwWFE',
+    shifts: '0AkfgEUsp5QrAdEdJc3BmMEt0TXFTdmVHY1cyWHdMTFE',
+    availabilities: '0AkfgEUsp5QrAdEdvSWQ0eVRMZmR1RXZRRW13LWY0ZEE',
+    schedule: '0AkfgEUsp5QrAdGhXTFBiQVJLZ3hjNWpla19FYVVZdFE',
+    scheduleParams: '0AkfgEUsp5QrAdHp6Q2dES0Z5Tm9YOGZsSWRnUEFuX0E',
+    scheduleGridMaps: '0AkfgEUsp5QrAdEE4eUhDT2RnNmlwRnQ0dkRsSHZlS3c',
+    availability: '0AkfgEUsp5QrAdG54d2VpakNXZEFsS05yRjByQmxwbmc',
+    availabilityParams: '0AkfgEUsp5QrAdHBqa2tkTXlwVnBoY0M5cmxrOUtRMVE',
+    availabilityGridMaps: '0AkfgEUsp5QrAdHloc1pSM0YtQjBxdjV2Qktrdzd4bHc',
+    emailElements: '0AkfgEUsp5QrAdDBqR1VRNVJzZ3RPTU5jNGNPUkJYY1E',
+    riderView: '0AkfgEUsp5QrAdENLcXVJbjN1SERaQ3Z3THh1THNuMVE',
+    restaurantView: '0AkfgEUsp5QrAdHNLSGF4QTNmeUNRc3NyeTBUOTMyRkE',
+    'Rider Availability Form (Responses)': '0AkfgEUsp5QrAdFVMY2tPZFRSRmU2bms2X0hoUVJFa3c',
+    payments: '15eeOQuDkLgr2M_oYd6RTiA7-v1IOukRhXzwzX35u9lM',
+    invoices: '1TxuhTTOteWHl8XrbtP64vPiLhD-k9Lkz7Di1ajNx1MY'
+  };
+  return liveKeys[ssName];
+};
+
+function Sheet (ssKey, ws){
+  // Logger.log('creating new Sheet('+ssKey+', '+ws+')');
+  var self = this;
 
   //ATTRIBUTES
-  this.g = SpreadsheetApp.openById(key).getSheetByName(ws);//g. accesses google spreadsheetApp's Sheet object for the sheet
-  this.class = ss;
+  this.g = SpreadsheetApp.openById(ssKey).getSheetByName(ws);//g. accesses google spreadsheetApp's Sheet object for the sheet
+  this.class = this.g.getParent().getName();
   this.instance = ws;//naming convention: each sheet has class ss name, instance sheet/tab name
   
   this.col = {//offset row/col picker for UI if the sheet in question is the schedule, otherwise set R,C of first cell to 2,1
@@ -80,7 +74,6 @@ function Sheet (ss, ws){
   };
 
   this.updateCell = function(row, col, val){
-    Logger.log('running '+this.class+'.'+this.instance+'updateCell('+row+', '+col+', '+val+')')
     this.g.getRange(row, col).setValue(val);
     return this;
   };
@@ -349,8 +342,20 @@ Date.prototype.getFormattedDate = function(){
   return str;
 }
 
+Number.prototype.toDollars = function(){
+  return '$'+this.toFixNum(2);
+};
+
+function getRandomInt(min, max){
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+};
+
 function toast(string){
   SpreadsheetApp.getActiveSpreadsheet().toast(string);
+};
+
+function stickyToast(string){
+  SpreadsheetApp.getActiveSpreadsheet().toast(string, 'ERROR', -1);
 };
 
 function getDayNum(dayName){
@@ -455,5 +460,36 @@ function getRefIdsFromRecords(records, refName){
 function getRefIdFromRecord(record, refName){
   return record[refName + 'id'];
 };
+
+function toRange(recs, headers){
+  var range = [];
+  _.each(recs, function (rec, i, recs){
+    var row = [];
+    _.each(headers, function (header){
+      row.push(rec[header] || '');
+    });
+    range.push(row);
+  });
+  return range.length > 1 ? range : range[0];
+};
+
+function getAttrsFromJsObj(obj){
+  var keys = _.reject(self.keys, function(k){return typeof k == 'string' || typeof k == 'number' || typeof k == 'boolean'}),
+    literal = {};
+  _.each(keys, function(k){literal[k] = obj[k]});
+  return literal;
+};
+
+
+// function toRange(rec, header)
+//   var range = [];
+//   for (var i = 0; i < headers.length; i++) {
+//     var header = headers[i];
+//     range.push(rec[header] === undefined ? '' : rec[header]);
+//   }
+//   return range;
+// };
+
+var _ = Underscore.load();
 
 //* ^^^ UTILITY FUNCTIONS ^^^ *//

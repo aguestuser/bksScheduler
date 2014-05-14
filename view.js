@@ -28,14 +28,14 @@ function View(p){
   this.newRecs = p.newRecs;
 
   this.cache = {
-    params: {class: p.view.class+'Params', instance: p.view.instance, sheet: new Sheet(p.view.class+'Params', p.view.instance)},
-    rowmap: {class: p.view.class+'GridMaps', instance: 'rowmap', sheet: new Sheet(p.view.class+'GridMaps', 'rowmap')},
-    cellmap: {class: p.view.class+'GridMaps', instance: 'cellmap', sheet: new Sheet(p.view.class+'GridMaps', 'cellmap')}
+    params: {class: p.view.class+'Params', instance: p.view.instance, sheet: new Sheet(getSsKey(p.view.class+'Params'), p.view.instance)},
+    rowmap: {class: p.view.class+'GridMaps', instance: 'rowmap', sheet: new Sheet(getSsKey(p.view.class+'GridMaps'), 'rowmap')},
+    cellmap: {class: p.view.class+'GridMaps', instance: 'cellmap', sheet: new Sheet(getSsKey(p.view.class+'GridMaps'), 'cellmap')}
   };
 
   this.view = p.view;
   this.view.type = this.view.instance == 'grid' ? 'grid' : 'list';
-  this.view.sheet = new Sheet(this.view.class,  this.view.instance);
+  this.view.sheet = new Sheet(getSsKey(this.view.class),  this.view.instance);
   
   if(this.view.type == 'grid' && (this.view.init == 'fromRange' || this.view.init == 'fromAltInstance')){
     this.view.gridType = this.cache.params.sheet.data[0].gridtype;
@@ -45,7 +45,7 @@ function View(p){
   for (var j in this.view){Logger.log('this.view['+j+']: ' + this.view[j]);}
 
   this.model = p.model;
-  this.model.sheet = new Sheet(this.model.class,  this.model.instance);
+  this.model.sheet = new Sheet(getSsKey(this.model.class),  this.model.instance);
 
   if (this.view.init =='fromRel'){this.rel = p.rel;}
   if (this.view.init == 'fromLastWeek'){this.lw = p.lw;}
@@ -84,7 +84,7 @@ function View(p){
       .clearRange()
       .setRange(range);
 
-    this.view.sheet = new Sheet(this.view.class, this.view.instance);
+    this.view.sheet = new Sheet(getSsKey(this.view.class), this.view.instance);
     sheet = this.view.sheet;
     
     if (this.view.type == 'grid' && this.gridMap !== undefined) {
@@ -102,7 +102,7 @@ function View(p){
         .sort(sheet.getColNum('date'));
     }
     
-    this.view.sheet = new Sheet(this.view.class, this.view.instance);
+    this.view.sheet = new Sheet(getSsKey(this.view.class), this.view.instance);
 
     return this;
   };
@@ -137,7 +137,7 @@ function appendColSums(sheet){
     range = sheet.g.getRange(r1, c1, r2, c2),
     arr = [];
   for (var i = 0; i < self.refs[0].ids.length; i++) {
-    var row = i + self.view.sheet.row.first,
+   var row = i + self.view.sheet.row.first,
       ref0id = getRef0IdFromRow(row),
       normalShifts = '', billedNormalShifts = '', extraShifts = '', extraEmergencyShifts ='', shifts = '', revenue = '';
     normalShifts = getNormalShifts(ref0id),
@@ -231,7 +231,7 @@ function getEmergencyExtraShifts(ref0id){
         }
       }
       //Logger.log('refreshing sheet');
-      this.model.sheet = new Sheet(this.model.class, this.model.instance);//refresh view object's copy of model to reflect changes just written to it
+      this.model.sheet = new Sheet(getSsKey(this.model.class), this.model.instance);//refresh view object's copy of model to reflect changes just written to it
       toast('Updated '+ this.model.class +' model!');
       //Logger.log('Finished running '+ this.view.class +'.writeToModel()!')
       return this;      
@@ -312,7 +312,7 @@ function getEmergencyExtraShifts(ref0id){
         }
       }
     }
-    this.rel.view.model.sheet = new Sheet(this.rel.view.view.sheet.class, this.rel.view.view.sheet.instance);//refresh rel object's copy of model to reflect edits
+    this.rel.view.model.sheet = new Sheet(getSsKey(this.rel.view.view.sheet.class), this.rel.view.view.sheet.instance);//refresh rel object's copy of model to reflect edits
     toast('Updated ' + this.rel.view.model.class + ' model!');
     //Logger.log('Finished running ' + this.view.class + '.writeToRel()');
     return this;
@@ -687,7 +687,7 @@ function getEmergencyExtraShifts(ref0id){
     //Logger.log('running cacheParams()!')
     // //Logger.log('p.view.class: ' + p.view.class);
     // //Logger.log('p.view.instance: ' + p.view.instance);
-    self.cache = {params:{class: p.view.class, instance: p.view.instance, sheet: new Sheet(p.view.class+'Params', p.view.instance)}};
+    self.cache = {params:{class: p.view.class, instance: p.view.instance, sheet: new Sheet(getSsKey(p.view.class+'Params'), p.view.instance)}};
     var range = [[p.refs[0].names, p.refs[1].names, p.dates.start.setToMidnight(), p.dates.end.setToMidnight()]];
     if (p.view.instance == 'grid'){range[0].push(p.view.gridType);}
 
@@ -698,7 +698,7 @@ function getEmergencyExtraShifts(ref0id){
 
   function getParamsFromAltInstance(class, instance){
     //Logger.log('running getParamsFromAltInstance()!');
-    var params = new Sheet(class+'Params', instance).data[0];
+    var params = new Sheet(getSsKey(class+'Params'), instance).data[0];
     // for (var j in params){
     //   //Logger.log('params['+j+']: ' + params[j])
     // }
@@ -715,7 +715,7 @@ function getEmergencyExtraShifts(ref0id){
     var range = getRange();
     self.cache.rowmap.sheet.clearRange();
     self.cache.rowmap.sheet.setRange(range);
-    self.cache.rowmap.sheet = new Sheet(self.view.class+'GridMaps', 'rowmap');//refresh object mapping of sheet to reflect new range values
+    self.cache.rowmap.sheet = new Sheet(getSsKey(self.view.class+'GridMaps'), 'rowmap');//refresh object mapping of sheet to reflect new range values
     return this;
   };
 
@@ -973,7 +973,7 @@ Logger.log('running sortByDate('+recs+')');
         self.refs[i] = {
           class: p.refs[i].class,
           instance: p.refs[i].instance,
-          sheet: new Sheet(p.refs[i].class, p.refs[i].instance),
+          sheet: new Sheet(getSsKey(p.refs[i].class), p.refs[i].instance),
           nameKey: p.refs[i].class.slice(0, -1),
           idKey: p.refs[i].class.slice(0, -1) + 'id'
         };
@@ -1145,11 +1145,11 @@ Logger.log('running sortByDate('+recs+')');
         logNoRecordsError();
       }
       // LOG RECORD LIST (for testing only)
-      for (var i = 0; i < self.recordList.length; i++) {//log record list values
-        for (var j in self.recordList[i]){
-          Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
-        }
-      }        
+      // for (var i = 0; i < self.recordList.length; i++) {//log record list values
+      //   for (var j in self.recordList[i]){
+      //     Logger.log ('recordList['+i+']['+j+']: ' + self.recordList[i][j]);
+      //   }
+      // }        
       // //LOG REF NAMES AND IDS
       // //Logger.log('self.refs[0].names: ' + self.refs[0].names);
       // //Logger.log('self.refs[0].ids: ' + self.refs[0].ids);
@@ -1273,7 +1273,7 @@ Logger.log('running sortByDate('+recs+')');
 
 
   function getVDFromSheetRow(row){
-    Logger.log('running getVDFromSheetRow('+row.id+')');
+    // Logger.log('running getVDFromSheetRow('+row.id+')');
     var vd = {id: row.id};
     for (var i = 0; i < self.vols.length; i++){
       var vol = self.vols[i];
@@ -1286,7 +1286,7 @@ Logger.log('running sortByDate('+recs+')');
         } else {
           // Logger.log('doing ref lookup for ' + row[nameKey]);
           vd[vol] = getRefIdFromName(getRefIndexFromClass(class), row[nameKey]); 
-          Logger.log('vd['+vol+']: ' + vd[vol]);
+          // Logger.log('vd['+vol+']: ' + vd[vol]);
           if (vd[vol] === undefined){//handle errors generated by trying to lookup non-existent names
             vd[vol] = '';
             logRlRefLookupError(nameKey, row[nameKey]);
@@ -1747,9 +1747,9 @@ Logger.log('running sortByDate('+recs+')');
     };
 
     function initEmailElements(){
-      ee.notes = new Sheet('emailElements', 'notes');
-      ee.reminders = new Sheet('emailElements', 'reminders');
-      ee.users = new Sheet('emailElements', 'users');
+      ee.notes = new Sheet(getSsKey('emailElements'), 'notes');
+      ee.reminders = new Sheet(getSsKey('emailElements'), 'reminders');
+      ee.users = new Sheet(getSsKey('emailElements'), 'users');
       ee.user = getRecordFromModelById(ee.users, user);
     };
 
@@ -1954,16 +1954,17 @@ Logger.log('running sortByDate('+recs+')');
   this.writeToCalendar = function (){
     toast('Updating calendar...')
     var calendars = getCals(self.refs[0].ids);
-    for (var i in calendars){
-      for (var j in calendars[i]){
-        //Logger.log('calendars['+i+']['+j+']: ' + calendars[i][j])
-      }
-    }
+    // for (var i in calendars){
+    //   for (var j in calendars[i]){
+    //     //Logger.log('calendars['+i+']['+j+']: ' + calendars[i][j])
+    //   }
+    // }
 
     for (var i = 0; i < this.recordList.length; i++){//loop through all records in view
       var refId = this.recordList[i][this.refs[0].idKey],
         eventId = this.recordList[i].eventid,
         calCode = getCalCode(this.recordList[i][this.refs[1].idKey], this.recordList[i].status);
+      if (this.recordList[i].billing == 'extra rider emergency'){calCode += ' (emergency extra rider)';}
         // //Logger.log('refId: ' + refId);
         // //Logger.log('eventId:' + eventId);
         // //Logger.log('calCode: ' + calCode);
@@ -2024,7 +2025,9 @@ Logger.log('running sortByDate('+recs+')');
         delegated: '*' + refName + '? (d)',
         confirmed: refName + ' (c)',
         'cancelled free': 'CANCELLED - NO CHARGE',
-        'cancelled charge': 'CANCELLED - CHARGE'
+        'cancelled charge': 'CANCELLED - CHARGE',
+        'late free': 'LATE - NO CHARGE',
+        'late charge': 'LATE - CHARGE'
       };
       return calCodes[status];
     };
@@ -2036,9 +2039,11 @@ Logger.log('running sortByDate('+recs+')');
     };
 
     function createEvent(calendar, rec, calCode){
-    //Logger.log('running createEvent('+calendar+', '+rec+', '+calCode+')')
-      var event = calendar.createEvent(calCode, rec.start, rec.end); 
+    Logger.log('running createEvent('+calendar+', '+rec.id+', '+calCode+')')
+      var event = calendar.createEvent(calCode, rec.start, rec.end),
+        sheet = self.model.sheet;
       rec.eventid = event.getId();
+      sheet.updateCell(sheet.getRowNum(rec.id), sheet.getColNum('eventid'), rec.eventid);
       //Logger.log('rec.eventid: ' + rec.eventid);
     };
 
@@ -2059,78 +2064,4 @@ Logger.log('running sortByDate('+recs+')');
 
 };
 
-View.prototype.createInvoices = function(){
-  var shiftsByRest = self.recordsSortedByRef[0],
-    now = new Date();
-  _.each(shiftsByRest, function(shifts, rest)){
-    _.each(shifts, function(shift, rest){
-      var invoice = new Invoice(rest, self.dates.weekMap, now, shift);
-      invoice.appendRow();
-      invoice.print();
-    });  
-  };
-  
-};
 
-
-function Invoice (restaurant, week, dateIssued, shifts){
-  
-  this.restaurant = restaurant; // Restaurant
-  this.week = self.dates.week; // Week
-  this.dateIssued = date; // Date
-  this.shifts = self.recordsSortedByRef[0]; // arr of Shifts belonging to this.restaurant during this.week
-  this.charges = new Charges(shifts);
-  this.paid =  false;// bool
-  this.AmountPaid = 0; // num
-
-};
-
-function Charges(shifts){
-  
-  var billings = _.pluck(shifts),
-    counts = getCounts(billings),
-    dif = getDif(counts);
-
-  this.fees = getFees(shifts); // num
-  
-  this.discount = dif*10;// num
-  this.revenue =  this.fees - this.discount;// num
-  this.tax = this.revenue * .08875; // num
-  this.charge = this.revenue + this.tax; //num
-  this.balance = getBalance(restaurant); // num
-  this.total_owed =  this.charge + this.restaurant;// num
-
-  function getCounts(billings){
-    return _.countBy(billings, function(b){
-        if (b === 'normal'){return 'normal';}
-        if (b === 'extra rider'){return 'extra';}
-        if (b === 'extra rider emergency'){return 'extraEmer'};
-      });
-  };
-
-  function getDif(counts){
-    return counts.normal > 10 ? counts.normal - 10 : 0;
-  };
-
-  function getFees(shifts){//input: array of billings, output: num
-    return counts.normal*10 - dif + counts.extraEmer*10 + counts.extra*5;
-  };
-};
-
-function getBalance(restaurant){
-  var balances = new Sheet('balances', 'index');
-  return _.findWhere(balances, {id: restaurant.id});
-};
-
-
-
-function Payment(){}
-  this.restaurant = restaurant; //Restaurant
-  this.amountPaid = amountPaid; //num
-  this.paymentMethod = paymentMethod; //paymentMethods.enum
-}
-
-function PaymentMethods(){
-  this.creditCard = 'creditCard';
-
-};
