@@ -31,7 +31,7 @@ function Payment(p, restaurantsSheet, paymentsSheet, balancesSheet){
   var self = this;
 
   //attrs
-  this.id = paymentsSheet.row.getLast(); //num
+  this.id = paymentsSheet.data.length; //num
   this.model = paymentsSheet; //Sheet obj
   this.restaurantsSheet = restaurantsSheet;
   this.restaurant = getRestaurant(this.restaurantsSheet, p); //Restaurant obj
@@ -42,7 +42,7 @@ function Payment(p, restaurantsSheet, paymentsSheet, balancesSheet){
   this.amount = p.amount.indexOf('$') > -1 ? Number(p.amount.replace('$', '')) : Number(p.amount); //num
   Logger.log(this.amount);
   this.previousBalance = Number(this.balance.balance); //num
-  this.newBalance = this.previousBalance + this.amount; //num
+  this.newBalance = this.previousBalance - this.amount; //num
   
   this.dateProcessed = p.dateProcessed; //Date
   this.method = p.method; //str

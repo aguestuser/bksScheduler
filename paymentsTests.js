@@ -22,8 +22,8 @@ function tests(){
 function testPaymentMethods(){
   Logger.log('running testPaymentMethods()');
   var restaurantsSheet = new Sheet(getSsKey('restaurants'), 'info'),
-    paymentsSheet = new Sheet(getSsKey('payments'), 'index'),
-    balancesSheet = new Sheet(getSsKey('restaurants'), 'balances'), 
+    paymentsSheet = new Sheet('1lCUb1mJB3jRmw_n801cxQWrGVo-vLZoBVkFm4SlwmDM', 'index'),
+    balancesSheet = new Sheet('0AkfgEUsp5QrAdEQxdTVHay1yc0QxNnhFSE1zcllMcGc', 'balances'),//Sheet 
     p = {
       restaurant: 'Mile End, Broooklyn',
       dateProcessed: new Date(),
@@ -70,5 +70,8 @@ function testPaymentUpdateBalance(payment){
       expectedDate = payment.dateProcessed.toDateString();
     Logger.log('expectedDate' + expectedDate);
     equal(date, expectedDate, 'last payment updated correctly');
+  });
+  test('payment.newBalance matches payment.balance.balance', function(){
+    equal(payment.balance.balance, payment.newBalance);
   });
 };

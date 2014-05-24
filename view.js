@@ -570,16 +570,18 @@ function getEmergencyExtraShifts(ref0id){
     
     function deleteFromList(list, id){
       list = _.reject(list, function (row){
-        _.isEqual(row, _.isWhere(list, {id: id}));
-      })
+        return row.id === id;
+      });
+    };
+
+    function updateRange(sheet){
+      var range = toRange(sheet);
+      sheet.clearRange().setRange(range);
     };
 
   };
 
-  function updateRange(sheet){
-    var range = toRange(sheet);
-    sheet.clearRange().setRange(range);
-  };
+
 
   this.setVols = function (vols){
     this.vols = vols;
@@ -1302,7 +1304,7 @@ Logger.log('running sortByDate('+recs+')');
   };
 
   function getVDFromRefStr(str, col, id){    
-    Logger.log('running getVDFromRefStr('+str+', '+col+', '+id+')');
+    // Logger.log('running getVDFromRefStr('+str+', '+col+', '+id+')');
     var code = str.slice(str.indexOf('-'), str.length).trim(),
       ref1Name = str.slice(0, str.indexOf('-')).trim(),
       idKey = self.refs[1].idKey,

@@ -16,13 +16,76 @@ function doGet(e) {
 };
 
 function tests(){
-  // testSortByDate();
+  testSortByDate();
   testGetInvoiceTitle();
+  testCreateInvoiceSheet();
   testInvoiceMethods();
+  testDeleteFromList();
 };
 
 
 //** TESTS **//
+
+function testDeleteFromList(){
+  var list = [{
+      id: 0,
+      name: 'Artem'
+    },{
+      id: 1,
+      name: 'Cristian'
+    },{
+      id: 2,
+      name: 'Charlie'
+    }],
+    expectedList = [{
+      id: 0,
+      name: 'Artem'
+    },{
+      id: 2,
+      name: 'Charlie'
+    }];
+  list = deleteFromList(list, 1);
+  test('deleteFromList() removes list element properly', function(){
+    equal(list, expectedList);
+  });
+};
+
+function deleteFromList(list, id){
+  list = _.reject(list, function (row){
+    return row.id === id;
+  });
+};
+
+function testCreateInvoiceSheet(){
+  var now = new Date(); 
+    title = getInvoiceTitle(now) + '__TEST__',
+    ss = SpreadsheetApp.create(title),
+    key = ss.getId(),
+  ss.getSheets()[0]
+    .setName('index')
+    .getRange(1,1)
+      .setValue('INVOICES');
+  var sheet = new Sheet(key, 'index');
+
+  test('createInvoiceSheet() creates new sheet', function(){
+    equal(ss.getId().length > 0, true, 'creates new google spreadsheet');
+    equal(sheet.hasOwnProperty('class'), true, 'creates new Sheet Object')
+  });
+
+  var folderName = 'Restaurant Invoices',
+    fileId = sheet.id;
+  moveFileToFolder(fileId, folderName);
+
+  test('moveFileToFolder() moves file to folder', function(){
+    equal(hasFile(folderName, fileId), true);
+  });
+
+  function hasFile(folderName, fileId){
+    var file = DriveApp.getFileById(fileId),
+      folders = file.getParents();
+    return folders.next().getName() == folderName;
+  };
+};
 
 function testGetInvoiceTitle(){
   var dates = {
@@ -32,22 +95,22 @@ function testGetInvoiceTitle(){
     mmdd: new Date(2014, 9, 20) //tests week from 10/13 - 10/19
   };
   test('get invoice tittle (M/D)', function(){
-    var title = getInvoiceTitle(dates[md]),
+    var title = getInvoiceTitle(dates.md),
       expectedTitle = 'RestaurantInvoices_2014_0505_0511';
     equal(title, expectedTitle, 'Creates correct invoice title for 1-digit month w/ 1-digit day');
   });
   test('get invoice tittle (MM/D)', function(){
-    var title = getInvoiceTitle(dates[mmd]),
+    var title = getInvoiceTitle(dates.mmd),
       expectedTitle = 'RestaurantInvoices_2014_1006_1012';
     equal(title, expectedTitle, 'Creates correct invoice title for 2-digit month w/ 1-digit day');
   });
   test('get invoice tittle (M/DD)', function(){
-    var title = getInvoiceTitle(dates[mdd]),
+    var title = getInvoiceTitle(dates.mdd),
       expectedTitle = 'RestaurantInvoices_2014_0512_0518';
     equal(title, expectedTitle, 'Creates correct invoice title for 1-digit month w/ 2-digit day');
   });
   test('get invoice tittle (MM/DD)', function(){
-    var title = getInvoiceTitle(dates[mdd]),
+    var title = getInvoiceTitle(dates.mmdd),
       expectedTitle = 'RestaurantInvoices_2014_1013_1019';
     equal(title, expectedTitle, 'Creates correct invoice title for 2-digit month w/ 2-digit day');
   });
@@ -55,49 +118,57 @@ function testGetInvoiceTitle(){
 
 function testInvoiceMethods(){
   
-  var now = new Date(),
-    thisMon = now.getWeekMap().mon,
-    lastMon = thisMon.incrementDate(-7),
+  var fakeNow = new Date(2014, 04, 12); // monday 5/12/2014
+  Logger.log('fakeNow: ' + fakeNow);
+  var lastMon = fakeNow.incrementDate(-7),
     lastWeek = lastMon.getWeekMap(),
-    invoicesSheet = new Sheet(getSsKey('invoices'), 'index'),//Sheet 
+    invoicesSheet = new Sheet('1WvCl00TYaNpCjmlfhdirUNets-fCljQclwtqw_OKQSg', 'index'),//Sheet
     p = {
-      now: now, //Date
-      invoicePrintoutSheet: new Sheet('1bCb_k9JqaWY59uT7wuA2bNJOHneppL0s9Eg1zzwXPfA', 'index'),//Sheet
+      now: fakeNow, //Date
+      invoicePrintoutSheet: {},//new Sheet('1bCb_k9JqaWY59uT7wuA2bNJOHneppL0s9Eg1zzwXPfA', 'index'),//Sheet
       invoicesSheet: invoicesSheet,//Sheet
-      restaurantsSheet: new Sheet(getSsKey('restaurants'), 'info'),//Sheet
-      balancesSheet: new Sheet(getSsKey('restaurants'), 'balances'),//Sheet
+      restaurantsSheet: new Sheet('0AkfgEUsp5QrAdGxSeGlFVjdDdEgxS29GUGI0Sjg0RHc', 'info'),//Sheet
+      balancesSheet: new Sheet('0AkfgEUsp5QrAdGxSeGlFVjdDdEgxS29GUGI0Sjg0RHc', 'balances'),//Sheet
       invoices: new Invoices(invoicesSheet),//Invoices
       week: lastWeek,//Date.weekMap
+      restaurant: {},// Restaurant
+      shifts: [] // Array of Shfits
     },
     chargeScenarios = getChargeScenarios(p);
-  Logger.log('p.week.mon: ' + p.week.mon);
-  testInvoiceWriteToModel(chargeScenarios, p);
-  testInvoiceUpdateBalance(chargeScenarios.vanilla, p);
-
+  // testInvoiceWriteToModel(chargeScenarios, p);
+  // testInvoiceUpdateBalance(chargeScenarios.vanilla, p);
+  testInvoicePrintSingle(chargeScenarios, p);
+  testInvoicePrintMultiple(chargeScenarios, p);
 };
 
 function testInvoiceWriteToModel(chargeScenarios, p){
+  Logger.log('running testInvoiceWriteToModel('+chargeScenarios+', ' +p+')');
   p.restaurant = chargeScenarios.vanilla.restaurant;
-  Logger.log('p.restaurant.name: ' + p.restaurant.name);
   p.shifts = chargeScenarios.vanilla.shifts;
-  Logger.log('p.shifts.length: ' + p.shifts.length);
-  var lastRow = p.invoicesSheet.g.getLastRow(),
+  var oldLastRow = p.invoicesSheet.g.getLastRow(),
     invoice = new Invoice(p);
+
   invoice.writeToModel();
-    var newLastRow = p.invoicesSheet.row.getLast();
+  p.invoicesSheet.refresh();
+  var newLastRow = p.invoicesSheet.row.getLast();
+
   test('Invoice.writeToModel() appends a new row to the Invoices model', function(){
-    equal(lastRow + 1, newLastRow, 'new row appended');
+    equal(newLastRow, oldLastRow +1, 'new row appended');
   });
   _.each(chargeScenarios, function(scenario, scenarioName){
+    Logger.log('testing invoice.writeToModel for scenario: ' + scenarioName);
     p.restaurant = scenario.restaurant;
     p.shifts = scenario.shifts;
-    createInvoice(p);
+    
     var invoice = new Invoice(p);
     invoice.writeToModel();
-    var row = invoicesSheet.row.getLast(),
-      col = invoicesSheet.getColNum('charge'),
-      charge = invoicesSheet.getCell(row, col).toFixed(2),
+    p.invoicesSheet.refresh();
+
+    var row = p.invoicesSheet.row.getLast(),
+      col = p.invoicesSheet.getColNum('charge'),
+      charge = p.invoicesSheet.getCell(row, col).toFixed(2),
       expectedCharge = scenario.expectedCharge;
+
     test('Invoice.writeToModel() creates correct charges for scenario: ' + scenarioName, function(){
       equal(charge, expectedCharge, 'correct chrage for ' + scenarioName);
     });
@@ -107,22 +178,96 @@ function testInvoiceWriteToModel(chargeScenarios, p){
 function testInvoiceUpdateBalance(scenario, p){
   p.restaurant = scenario.restaurant;
   p.shifts = scenario.shifts;
-  var invoice = new Invoice(p);
+  var invoice = new Invoice(p),
+    oldCharges = invoice.balance.charges;
+  Logger.log('invoice: ' +invoice);
+  Logger.log('invoice.balance: ' +invoice.balance);
+  Logger.log('invoice.balance.charges: ' +invoice.balance.charges);
   invoice
-    .updateBalance()
-    .refreshBalancesSheet();
+    .updateBalance();
+  Logger.log('invoice.balance.charges: ' +invoice.balance.charges);
+    
+
   test('Invoice.updateBalance() updates charges value correctly', function(){
-    var charges = invoice.balance.charges.toFixed(2),
-      expectedCharges = (charges + invoice.charges.charge).toFixed(2);
-    equal(charges, expectedCharges, 'charges updated correctly');
+    var newCharges = invoice.balance.charges,
+      expectedCharges = oldCharges + invoice.charges.charge;
+    Logger.log('expectedCharges: ' + expectedCharges);
+    Logger.log('newCharges: ' + newCharges);
+    equal(newCharges, expectedCharges, 'charges updated correctly');
   });
-  test('Payment.updateBalance() updates last charge correctly', function(){
-    var date = invoice.balance.lastCharge.toDateString(),
-      expectedDate = invoice.dateProcessed.toDateString();
+  test('Invoice.updateBalance() updates last charge correctly', function(){
+    var date = invoice.balance.lastCharge.toDateString();
+    var expectedDate = invoice.dateIssued.toDateString();
     Logger.log('expectedDate' + expectedDate);
-    equal(date, expectedDate, 'last charge updated correctly');
+    deepEqual(date, expectedDate, 'last charge updated correctly');
   });
 };
+
+function testInvoicePrintSingle(chargeScenarios, p){
+  Logger.log('running testInvoicePrintSingle()');
+  p.balancesSheet = new Sheet(p.balancesSheet.id, 'staticBalances');
+  p.invoicesSheet = new Sheet(p.invoicesSheet.id, 'static0rows');
+  Logger.log('p.invoicesSheet.data.length: ' + p.invoicesSheet.data.length);
+  Logger.log('p.balancesSheet.data[59].balance: ' + p.balancesSheet.data[59].balance);
+  _.each(chargeScenarios, function(scenario, scenarioName){
+    Logger.log('running loop for ' + scenarioName);
+
+    var expectedSheet = new Sheet('1kiHg4fs7bMTJg4vAjZ1qZ8EBg1KUdmHNID-WoGrvEhk', scenarioName),
+      resultsSheet = new Sheet('1bCb_k9JqaWY59uT7wuA2bNJOHneppL0s9Eg1zzwXPfA', scenarioName);
+    p = loadScenarioParams(p, scenario);
+    p.invoicePrintoutSheet = resultsSheet;
+
+    Logger.log('p.invoicesSheet.data.length: ' + p.invoicesSheet.data.length);
+    var invoice = new Invoice(p);
+    resetTestSheet(resultsSheet);
+    invoice.print();
+
+    var expectedRange = expectedSheet.g.getRange(1,1, expectedSheet.g.getLastRow(), expectedSheet.g.getLastColumn()).getValues(),
+      resultsRange = resultsSheet.g.getRange(1,1, resultsSheet.g.getLastRow(), resultsSheet.g.getLastColumn()).getValues();
+
+    test(scenarioName + ' prints correctly:', function(){
+      deepEqual(resultsRange, expectedRange);
+    });
+
+  });
+};
+
+
+
+function testInvoicePrintMultiple(chargeScenarios, p){
+
+  var expectedSheet = new Sheet('1kiHg4fs7bMTJg4vAjZ1qZ8EBg1KUdmHNID-WoGrvEhk', 'twoRestos'),
+    resultsSheet = new Sheet('1bCb_k9JqaWY59uT7wuA2bNJOHneppL0s9Eg1zzwXPfA', 'twoRestos');
+  resetTestSheet(resultsSheet);
+  
+  p.invoicePrintoutSheet = resultsSheet;
+  p = loadScenarioParams(p, chargeScenarios.vanilla);
+  p.balancesSheet = new Sheet(p.balancesSheet.id, 'staticBalances');
+  p.invoicesSheet = new Sheet(p.invoicesSheet.id, 'static0rows');
+
+  vanillaInvoice = new Invoice(p);
+  Logger.log('printing vanilla invoice');
+  vanillaInvoice.print();
+
+  p.invoicePrintoutSheet.refresh();
+  p.invoicesSheet = new Sheet(p.invoicesSheet.id, 'static1row');
+
+  p = loadScenarioParams(p, chargeScenarios.tax);
+  taxInvoice = new Invoice(p);
+  Logger.log('printing tax invoice');
+  taxInvoice.print();
+  p.invoicePrintoutSheet.refresh();
+
+  
+  var expectedRange = expectedSheet.g.getRange(1,1, expectedSheet.g.getLastRow(), expectedSheet.g.getLastColumn()).getValues(),
+    resultsRange = resultsSheet.g.getRange(1,1, resultsSheet.g.getLastRow(), resultsSheet.g.getLastColumn()).getValues();
+
+  test('Multiple invoices print correctly', function(){
+    deepEqual(resultsRange, expectedRange, 'passes!');
+  });
+
+};
+
 
 function testPaymentUpdateBalance(payment){
   payment
@@ -130,7 +275,7 @@ function testPaymentUpdateBalance(payment){
     .refreshBalancesSheet();
   test('Payment.updateBalance() updates payments value correctly', function(){
     var payments = payment.balance.payments.toFixed(2),
-      expectedPayments = (payments + payment.amount).toFixed(2);
+      expectedPayments = (payments - payment.amount).toFixed(2);
     equal(payments, expectedPayments, 'payments updated correctly');
   });
   test('Payment.updateBalance() updates last payment correctly', function(){
@@ -141,108 +286,127 @@ function testPaymentUpdateBalance(payment){
   });
 };
 
-  function getChargeScenarios(p){
-    var mileEndBkk = p.restaurantsSheet.data[64],
-      mileEndManhattt = p.restaurantsSheet.data[65],
-      start = new Date(p.week.mon.getFullYear(), p.week.mon.getMonth(), p.week.mon.getDate(), 11),
-      end = new Date(p.week.mon.getFullYear(), p.week.mon.getMonth(), p.week.mon.getDate(), 17);
-    return {
-      vanilla: {
-        restaurant: mileEndBkk,
-        shifts: [{
-          riderid: 0,
-          start: start,
-          end: end,  
-          status: 'confirmed',   
-          billing: 'normal' 
-        }],
-        expectedCharge: '10.00'
-      },
-      tax: {
-        restaurant: mileEndManhattt,
-        shifts: [{
-            riderid: 0, 
-            start: start,
-            end: end, 
-            status: 'confirmed',   
-            billing: 'normal'
-        }],
-        expectedCharge: '10.89'
-      },
-      discount: {
-        restaurant: mileEndBkk,
-        shifts: getDiscountShifts(start, end),
-        expectedCharge: '100.00'
-      },
-      extraRider: {
-        restaurant: mileEndBkk,
-        shifts: [{
-          riderid: 0, 
-          start: start,
-          end: end, 
-          status: 'confirmed',   
-          billing: 'normal'
-        },{
-          riderid: 1,
-          start: start.incrementDate(1),
-          end: end.incrementDate(1),
-          status: 'confirmed',
-          billing: 'extra rider'
-        }],
-        expectedCharge: '15.00'
-      },
-      emergencyExtraRider: {
-        restaurant: mileEndBkk,
-        shifts: [{
-          riderid: 0, 
-          start: start,
-          end: end, 
-          status: 'confirmed',   
-          billing: 'normal'
-        },{
-          riderid: 1,
-          start: start.incrementDate(1),
-          end: end.incrementDate(1),
-          status: 'confirmed',
-          billing: 'extra rider emergency'
-        }],
-        expectedCharge: '20.00'
-      },
-      free: {
-        restaurant: mileEndBkk,
-        shifts: [{
-          riderid: 0, 
-          start: start,
-          end: end, 
-          status: 'confirmed',   
-          billing: 'normal'
-        },{
-          riderid: 1,
-          start: start.incrementDate(1),
-          end: end.incrementDate(1),
-          status: 'confirmed',
-          billing: 'free'
-        }],
-        expectedCharge: '10.00'
-      } 
-    };
-  };
+function resetTestSheet(sheet){
+  sheet.g.getRange(2,1, sheet.g.getLastRow()-1, 7).clear();
+};
 
-  function getDiscountShifts(start, end){
-    var shifts = [];
-    _(11).times(function(n){
-      Logger.log('start: ' + start);
-      var num = getRandomInt(0,6);
-      shifts.push({
-        riderid: num,  
-        start: start.incrementDate(num),
-        end: end.incrementDate(num),            
+function loadScenarioParams(p, scenario){
+  p.restaurant = scenario.restaurant;
+  p.shifts = scenario.shifts;
+  return p;
+};
+
+function getChargeScenarios(p){
+  var mileEndBkk = p.restaurantsSheet.data[61],
+    mileEndManhattt = p.restaurantsSheet.data[59],
+    start = new Date(p.week.mon.getFullYear(), p.week.mon.getMonth(), p.week.mon.getDate(), 11),
+    end = new Date(p.week.mon.getFullYear(), p.week.mon.getMonth(), p.week.mon.getDate(), 17);
+  return {
+    vanilla: {
+      restaurant: mileEndBkk,
+      shifts: [{
+        id: 0,
+        riderid: 0,
+        start: start,
+        end: end,  
+        status: 'confirmed',   
+        billing: 'normal' 
+      }],
+      expectedCharge: '10.00'
+    },
+    tax: {
+      restaurant: mileEndManhattt,
+      shifts: [{
+          id: 0,
+          riderid: 0, 
+          start: start,
+          end: end, 
+          status: 'confirmed',   
+          billing: 'normal'
+      }],
+      expectedCharge: '10.89'
+    },
+    discount: {
+      restaurant: mileEndBkk,
+      shifts: getDiscountShifts(start, end),
+      expectedCharge: '100.00'
+    },
+    extraRider: {
+      restaurant: mileEndBkk,
+      shifts: [{
+        id: 0,
+        riderid: 0, 
+        start: start,
+        end: end, 
         status: 'confirmed',   
         billing: 'normal'
-      });
-    });
-    return shifts;
+      },{
+        id: 0,
+        riderid: 1,
+        start: start,
+        end: end,
+        status: 'confirmed',
+        billing: 'extra rider'
+      }],
+      expectedCharge: '15.00'
+    },
+    emergencyExtraRider: {
+      restaurant: mileEndBkk,
+      shifts: [{
+        id: 0,
+        riderid: 0, 
+        start: start,
+        end: end, 
+        status: 'confirmed',   
+        billing: 'normal'
+      },{
+        id: 0,
+        riderid: 1,
+        start: start.incrementDate(1),
+        end: end.incrementDate(1),
+        status: 'confirmed',
+        billing: 'extra rider emergency'
+      }],
+      expectedCharge: '20.00'
+    },
+    free: {
+      restaurant: mileEndBkk,
+      shifts: [{
+        id: 0,
+        riderid: 0, 
+        start: start,
+        end: end, 
+        status: 'confirmed',   
+        billing: 'normal'
+      },{
+        id: 0,
+        riderid: 1,
+        start: start.incrementDate(1),
+        end: end.incrementDate(1),
+        status: 'cancelled free',
+        billing: 'free'
+      }],
+      expectedCharge: '10.00'
+    } 
   };
+};
+
+function getDiscountShifts(start, end){
+  var shifts = [];
+  _(11).times(function(n){
+    // Logger.log('start: ' + start);
+    dateNum = n < 7 ? n : n -7;
+    shifts.push({
+      id: n,
+      riderid: n,  
+      start: start.incrementDate(dateNum),
+      end: end.incrementDate(dateNum),            
+      status: 'confirmed',   
+      billing: 'normal'
+    });
+  });
+  return shifts;
+};
 
 function testSortByDate(view){
   var nums = [1,2,3], 

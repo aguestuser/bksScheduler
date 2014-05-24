@@ -5,7 +5,7 @@
 //*CONSTRUCT SHEET OBJECTS
 
 function getSsKey(ssName){
-  // Logger.log('running getSsKey('+ssName+')')
+  Logger.log('running getSsKey('+ssName+')')
   var testingKeys = {
     sheets: '0AkfgEUsp5QrAdFVXX0JMSjFIYWxXdlBZQ1NtRFVHVEE',
     riders: '0AkfgEUsp5QrAdE9qTFg3bVlCTWY1WHc2WDJ4QUpFU2c',
@@ -50,6 +50,7 @@ function Sheet (ssKey, ws){
 
   //ATTRIBUTES
   this.g = SpreadsheetApp.openById(ssKey).getSheetByName(ws);//g. accesses google spreadsheetApp's Sheet object for the sheet
+  this.id = ssKey;
   this.class = this.g.getParent().getName();
   this.instance = ws;//naming convention: each sheet has class ss name, instance sheet/tab name
   
@@ -65,9 +66,15 @@ function Sheet (ssKey, ws){
   };
 
   this.data = getRowsData(this.g, this.g.getRange(this.row.first, this.col.first, this.row.getLast(), this.col.getLast()), 1);//translate row data to JSON (see script below)
-  this.headers = normalizeHeaders(this.g.getRange(1, 1, 1, this.col.getLast()).getValues()[0]);//create array of header names
+  this.headers = normalizeHeaders(this.g.getRange(1, 1, 1, this.col.getLast()).getValues()[0]);//create array of header name
 
-   //*ACCESSOR METHODS
+   //*PUBLIC METHODS
+
+  this.refresh = function(){
+    this.g = SpreadsheetApp.openById(this.id).getSheetByName(this.instance);
+    this.data = getRowsData(this.g, this.g.getRange(this.row.first, this.col.first, this.row.getLast(), this.col.getLast()), 1);
+    return this;
+  };
 
   this.getCell = function (row, col){
     return this.g.getRange(row, col).getValue();
@@ -96,6 +103,12 @@ function Sheet (ssKey, ws){
     return this; // for method chaining
   };
 
+  this.appendRows = function(rows){
+    _.each(rows, function(row){
+      self.g.appendRow(row);
+    });
+    return this;
+  };
 
   this.getColNum = function (headerName){
     return this.headers.indexOf(headerName) + 1;
@@ -243,6 +256,14 @@ function getWsName(){
   return SpreadsheetApp.getActiveSheet().getName();
 };
 
+function sortByDate(recs){
+  recs.sort(function(a,b){
+    if (a.start.getTime() < b.start.getTime()){return -1;}
+    if (a.start.getTime() > b.start.getTime()){return 1;}
+  });
+  return recs;
+};
+
 //add dedupe method to Array prototype
 Array.prototype.dedupe = function() {
     var i, 
@@ -338,12 +359,20 @@ Date.prototype.getFormattedTime = function(){
 Date.prototype.getFormattedDate = function(){
   var month = this.getMonth() + 1,
     date = this.getDate(),
-    str = month + '/' + date;
+    year = this.getYear(),
+    str = month + '/' + date + '/' + year; 
+  return str;
+}
+
+Date.prototype.getShortFormattedDate = function(){
+  var month = this.getMonth() + 1,
+    date = this.getDate(),
+    str = month + '/' + date; 
   return str;
 }
 
 Number.prototype.toDollars = function(){
-  return '$'+this.toFixNum(2);
+  return '$'+this.toFixed(2);
 };
 
 function getRandomInt(min, max){
@@ -355,7 +384,7 @@ function toast(string){
 };
 
 function stickyToast(string){
-  SpreadsheetApp.getActiveSpreadsheet().toast(string, 'ERROR', -1);
+  SpreadsheetApp.getActiveSpreadsheet().toast(string, 'IMPORTANT', -1);
 };
 
 function getDayNum(dayName){
@@ -466,7 +495,9 @@ function toRange(recs, headers){
   _.each(recs, function (rec, i, recs){
     var row = [];
     _.each(headers, function (header){
-      row.push(rec[header] || '');
+      if (rec[header] === 0){row.push(0);} else{
+        row.push(rec[header] || '');      
+      }
     });
     range.push(row);
   });

@@ -10,6 +10,7 @@
 function initUi(serverHandler){//initiate UI dialog
 
   Logger.log('running initUI('+serverHandler+')');
+  Logger.log('ss: ' + ss);
   //get sheet and sheet index to determine view to pass to click handler
   var ss = SpreadsheetApp.getActiveSpreadsheet().getName(),
     ws = SpreadsheetApp.getActiveSheet().getName();
@@ -108,9 +109,12 @@ function createMenus() {//creates event triggers for calling functions
       },{
           name: 'Create Records',
           functionName: 'initCreateRecordsUi' 
-      }, {
+      },{
           name: 'Create Invoices',
           functionName: 'createInvoices' 
+      },{
+        name: 'Test Prototype',
+        functionName: 'testPrototype'
       }
     ];
     SpreadsheetApp.getActiveSpreadsheet().addMenu("Functions", menuEntries);
@@ -262,6 +266,18 @@ function sendEmails(){
   }
 };
 
+function createInvoices(){
+  var schedule = new View({
+      view: {class: 'schedule', instance: getWsName(), init: 'fromRange'},
+      model: {class: 'shifts', instance: 'index'},
+      refs: [{class: 'restaurants', instance: 'info'}, {class: 'riders', instance:'info'}]
+    });
+  if (!schedule.hasErrors()){
+    schedule.createInvoices();
+  };
+};
+
+
 function updateCalendar(){
     var schedule = new View({
       view: {class: 'schedule', instance: getWsName(), init: 'fromRange'},
@@ -276,4 +292,28 @@ function updateCalendar(){
     .writeToModel();
 
 };
+
+function testPrototype(){
+  var schedule = new View({
+    view: {class: 'schedule', instance: getWsName(), init: 'fromRange'},
+    model: {class: 'shifts', instance: 'index'},
+    refs: [{class: 'restaurants', instance: 'info'}, {class: 'riders', instance:'info'}]
+  });
+  if (!schedule.hasErrors()){
+    schedule.testToast();
+  };
+};
+
+View.prototype.testToast = function() {
+
+  var self = this,
+    className = getClassName();
+  stickyToast("This view's class name is: " + className);
+
+  function getClassName(){
+    return self.view.class;
+  };
+
+};
+
 
