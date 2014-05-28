@@ -14,8 +14,6 @@ function initUi(serverHandler){//initiate UI dialog
   //get sheet and sheet index to determine view to pass to click handler
   var ss = SpreadsheetApp.getActiveSpreadsheet().getName(),
     ws = SpreadsheetApp.getActiveSheet().getName();
-    Logger.log('ss: ' + ss);
-    Logger.log('ws: ' + ws);
     sheet = new Sheet(getSsKey(ss), ws),
     ref1 = ss == 'schedule' ? 'riders' : 'restaurants',
   //retrieve view's current start and end dates from sheet data
@@ -26,7 +24,8 @@ function initUi(serverHandler){//initiate UI dialog
   var titles = {
       refreshView: 'Refresh ' + ss + ' view',
       cloneLastWeek: 'Clone last week\'s '+ ss,
-      createRecords: 'Create new '+ ss +' records:'
+      createRecords: 'Create new '+ ss +' records:',
+      deleteShifts: 'Delete Shifts'
     } 
     app = UiApp.createApplication().setTitle(titles[serverHandler]).setWidth(200).setHeight(240),
     //construct panel to hold user input elements
@@ -72,6 +71,12 @@ function initUi(serverHandler){//initiate UI dialog
   }
   submitHandler.addCallbackElement(gridType);
 
+  if (serverHandler === 'deleteShifts'){//add field for shift id if calling deleteShift()
+    var shiftIdsLabel = app.createLabel('Shifts to Delete (by Id #, comma-separated)').setId('shiftIdsLabel'),
+      shiftIds = app.createTextBox().setName('shiftIds').setId('shiftIds');
+    submitHandler.addCallbackElement(shiftIds);
+  }
+
   //define button to trigger callback
   var submit = app.createButton('Submit!').addClickHandler(submitHandler);
   
@@ -79,6 +84,7 @@ function initUi(serverHandler){//initiate UI dialog
   panel.add(startLabel).add(start).add(endLabel).add(end);
   if (ws == 'lookup'){panel.add(restaurantsLabel).add(restaurants).add(ridersLabel).add(riders);}
   if (ws == 'grid'){panel.add(gridTypeLabel).add(gridType);} 
+  if (serverHandler == 'deleteShifts'){panel.add(shiftIdsLabel).add(shiftIds);}
 
   panel.add(submit);
   app.add(panel);
@@ -113,8 +119,8 @@ function createMenus() {//creates event triggers for calling functions
           name: 'Create Invoices',
           functionName: 'createInvoices' 
       },{
-        name: 'Test Prototype',
-        functionName: 'testPrototype'
+        name: 'Delete Shifts',
+        functionName: 'initDeleteShiftsUi'
       }
     ];
     SpreadsheetApp.getActiveSpreadsheet().addMenu("Functions", menuEntries);
@@ -130,6 +136,10 @@ function initCloneLastWeekUi(){
 
 function initCreateRecordsUi(){
   initUi('createRecords');
+};
+
+function initDeleteShiftsUi(){
+  initUi('deleteShifts');
 };
 
 function refreshView(e){
@@ -188,9 +198,31 @@ function createRecords(e){
   // Logger.log('p.gridType: ' + p.gridType);
   schedule = new View(sp);
   if (!schedule.hasErrors()){
-    schedule.writeToModel().refreshViews(['grid']);
+    schedule
+      .writeToModel()
+      .refreshViews(['grid']);
   }
   return app.close();
+};
+
+function deleteShifts(e){
+  var app = UiApp.getActiveApplication(),//open ui instance
+    p = e.parameter,//store ui params
+    sp = {//initialize view params from ui params
+      view: {class: p.class, instance: p.instance, init: 'fromUi', gridType: p.gridType},
+      model: {class: 'shifts', instance: 'index'},
+      refs: [{class: 'restaurants', instance: 'info', names: p.restaurants}, {class: 'riders', instance:'info', names: p.riders}],
+      dates:{start: p.start, end: p.end}
+    };
+  
+  schedule = new View(sp);//initialize schedule view
+  
+  if (!schedule.hasErrors()){
+    schedule
+      .deleteRecords(p.shiftIds)
+      .refreshViews(['grid', 'weekly', 'update']); 
+  }  
+  return app.close();  //close ui  
 };
 
 function saveEdits(){

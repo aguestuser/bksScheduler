@@ -20,7 +20,7 @@ View.prototype.createInvoices = function(){
 
   _.each(shiftsByRestaurant, function(shiftObj){
     Logger.log('creating invoice for restaurant: ' + shiftObj.name);
-    if (shiftObj.id !== 27){//don't create invoices for Kulushkat
+    if (Number(shiftObj.id) != 27){//don't create invoices for Kulushkat
       p.restaurant = p.restaurantsSheet.data[shiftObj.id];//Restaurant obj
       p.shifts = shiftObj.shifts;//arr of Shifts
       createInvoice(p);      

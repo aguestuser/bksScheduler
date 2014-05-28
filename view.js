@@ -214,6 +214,7 @@ function getEmergencyExtraShifts(ref0id){
         if (id === undefined || id === ''){//if the view's id attr indicates a new record, create one 
           // //Logger.log('writing new record to model.');
           this.writeNewRecordToModel(this.recordList[i], i);
+          refreshRowMap(getRMFromGridMap);
         } else {//otherwise, overwrite all cells in this.model.sheet whose values don't match those in the record list
           if (this.view.class === 'schedule' && this.view.type === 'grid'){this.vols.push('billing');}
           for (var j = 0; j< this.vols.length; j++){
@@ -561,25 +562,86 @@ function getEmergencyExtraShifts(ref0id){
 
   //**ACCESSOR METHODS **//
 
-  this.deleteRecord = function (id){
-    deleteFromList(this.recordList, id);
-    deleteFromList(this.model.sheet.data, id);
-    deleteFromList(this.cache.cellmap.sheet.data, id);
-    updateRange(this.model.sheet.data);
-    updateRange(this.cache.cellmap.data, id);
+  this.deleteRecords = function (idStr){
+    Logger.log('running this.deleteRecords('+idStr+')');
+    var ids = formatIds(idStr),//converts string to arr of ints
+      cellmapIds = getCellmapIds(ids, this.cache.cellmap.sheet);
+    Logger.log('ids: ' + ids);
+    Logger.log('cellmapIds: '+ cellmapIds);
     
-    function deleteFromList(list, id){
-      list = _.reject(list, function (row){
-        return row.id === id;
+    this.recordList = bulkDeleteFromList(this.recordList, ids);
+    this.model.sheet.data = bulkDeleteFromList(this.model.sheet.data, ids);
+    this.cache.cellmap.sheet.data = bulkDeleteFromList(this.cache.cellmap.sheet.data, cellmapIds);
+    updateRange(this.model.sheet);
+    updateRange(this.cache.cellmap.sheet);
+
+    return this;
+
+    function formatIds(ids){//input: String of comma-separated Shift Ids
+                            //output: Array of Integer Shift Ids
+      idArr = ids.split(',');
+      return _.map(idArr, function(id){
+        return Number(id.trim());
       });
     };
 
-    function updateRange(sheet){
-      var range = toRange(sheet);
-      sheet.clearRange().setRange(range);
+    function getCellmapIds(ids, cellmapSheet){//input: Array of Integer Shift Ids, Sheet Object
+                                              //output: Array of Integer Cellmap Ids
+      Logger.log('running getCellmapIds('+ids+','+cellMapSheet+')');
+      var cellmappings = _.map(ids, function(id){
+        return _.find(cellmapSheet.data, function(row){
+          return row.recordid === id;
+        });
+      });
+      var cellmapids = _.pluck(cellmappings, 'id');
+      return cellmapids;
     };
 
+    function updateRange(sheet){
+      var range = toRange(sheet.data, sheet.headers);
+      sheet
+        .clearRange()
+        .setRange(range);
+    };
+
+    function bulkDeleteFromList(list, ids){ //input: Array of Shifts, Array of Integers
+                                            //output: Array of Shifts
+                                            //side-effects: deletes shifts with ids given in args from Shifts Array 
+
+      _.each(ids, function(id){
+        list = deleteFromList(list, id);
+      });
+
+      list = reIndexList(list, ids[0]);
+
+      return list;
+    };
+
+    function deleteFromList(list, id){
+      Logger.log('running deleteFromList('+list+', '+id+')');
+      var newList = [];
+      _.each(list, function(row){
+        newList.push(_.clone(row));
+      });
+      newList = _.reject(newList, function (row){
+        return row.id === id;
+      });
+      return newList;
+    };
+
+    function reIndexList(list, reIndexStart){
+      var listHead = _.head(list, reIndexStart),
+        listTail = _.tail(list, reIndexStart),
+        newId = reIndexStart;
+      _.each(listTail, function(row){
+        row.id = newId;
+        newId++;
+      });
+      var newList = listHead.concat(listTail);
+      return newList;
+    };    
   };
+
 
 
 

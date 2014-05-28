@@ -16,18 +16,19 @@ function doGet(e) {
 };
 
 function tests(){
-  testSortByDate();
-  testGetInvoiceTitle();
-  testCreateInvoiceSheet();
-  testInvoiceMethods();
+  // testSortByDate();
+  // testGetInvoiceTitle();
+  // testCreateInvoiceSheet();
+  // testInvoiceMethods();
   testDeleteFromList();
+  testDeleteRecord();
 };
 
 
 //** TESTS **//
 
 function testDeleteFromList(){
-  var list = [{
+  var shifts = [{
       id: 0,
       name: 'Artem'
     },{
@@ -36,25 +37,241 @@ function testDeleteFromList(){
     },{
       id: 2,
       name: 'Charlie'
-    }],
-    expectedList = [{
-      id: 0,
-      name: 'Artem'
     },{
-      id: 2,
-      name: 'Charlie'
-    }];
-  list = deleteFromList(list, 1);
-  test('deleteFromList() removes list element properly', function(){
-    equal(list, expectedList);
+      id: 3,
+      name: 'Nikolai'
+    }],
+    expectedShifts = [
+      [{
+        id: 0,
+        name: 'Cristian'
+      },{
+        id: 1,
+        name: 'Charlie'
+      },{
+        id: 2,
+        name: 'Nikolai'
+      }],
+      [{
+        id: 0,
+        name: 'Artem'
+      },{
+        id: 1,
+        name: 'Charlie'
+      },{
+        id: 2,
+        name: 'Nikolai'
+      }],
+      [{
+        id: 0,
+        name: 'Artem'
+      },{
+        id: 1,
+        name: 'Cristian'
+      },{
+        id: 2,
+        name: 'Charlie'
+      }],
+      [{
+        id: 0,
+        name: 'Artem'
+      },{
+        id: 1,
+        name: 'Nikolai'
+      }]      
+    ];
+  Logger.log('deleting first row');
+  shifts0 = bulkDeleteFromList(shifts, [0]);
+  Logger.log('deleting second row');
+  shifts1 = bulkDeleteFromList(shifts, [1]);
+  Logger.log('deleting last row');
+  shifts2 = bulkDeleteFromList(shifts, [3]);
+  Logger.log('deleting second and third rows');
+  shifts3 = bulkDeleteFromList(shifts, [1,2]);
+  test('deleteFromList() deletes list elements correctly', function(){
+    deepEqual(shifts0, expectedShifts[0], 'correctly deletes first row');
+    deepEqual(shifts1, expectedShifts[1], 'correctly deletes middle row');
+    deepEqual(shifts2, expectedShifts[2], 'correctly deletes last row');
+    deepEqual(shifts3, expectedShifts[3], 'correctly deletes multiple rows');
   });
 };
 
+
+function testDeleteRecord(){
+  var shiftsSheet = new Sheet('0AkfgEUsp5QrAdEpVTjFMUzhINkFrM3BDUklWeW5LaGc', 'index'),
+    expectedShiftsSheet = new Sheet('0AkfgEUsp5QrAdEpVTjFMUzhINkFrM3BDUklWeW5LaGc', 'expected'),
+    cellmapSheet = new Sheet('0AkfgEUsp5QrAdGMybndEOWgzOWI3TVozZmhjQnFCbHc','cellmap'),
+    expectedCellmapSheet = new Sheet('0AkfgEUsp5QrAdGMybndEOWgzOWI3TVozZmhjQnFCbHc', 'expected')
+    shifts  = [{
+      id: 0,
+      name: 'Artem'
+    },{
+      id: 1,
+      name: 'Cristian'
+    },{
+      id: 2,
+      name: 'Charlie'
+    },{
+      id: 3,
+      name: 'Nikolai'
+    }],
+    cellmappings = [{
+      id: 0,
+      recordid: 1
+    },{
+      id: 1,
+      recordid: 3
+    },{
+      id: 2,
+      recordid: 0
+    },{
+      id: 3,
+      recordid: 2
+    }],
+    shiftsRange = toRange(shifts, shiftsSheet.headers),
+    expectedShiftsRange = toRange(expectedShiftsSheet.data, expectedShiftsSheet.headers),
+    cellmapRange = toRange(cellmappings, cellmapSheet.headers),
+    expectedCellmapRange = toRange(expectedCellmapSheet.data, expectedCellmapSheet.headers);
+  
+
+  var actual = runDeletions(shifts, shiftsRange, shiftsSheet, cellmapRange, cellmapSheet, '1,2');
+
+  test('.deleteRecords() properly deletes records and cellmappings', function(){
+    deepEqual(actual.shiftsRange, expectedShiftsRange, 'shifts properly deleted');
+    deepEqual(actual.cellmapRange, expectedCellmapRange, 'cellmappings properly deleted');
+  });
+
+  actual = runDeletions(shifts, shiftsRange, shiftsSheet, cellmapRange, cellmapSheet, '1 ,2 ');
+
+  test('.deleteRecords() properly deletes records and cellmappings with trailing spaces', function(){
+    deepEqual(actual.shiftsRange, expectedShiftsRange, 'shifts properly deleted with trailing spaces');
+    deepEqual(actual.cellmapRange, expectedCellmapRange, 'cellmappings properly deleted with trailing spaces');
+  });
+
+  actual = runDeletions(shifts, shiftsRange, shiftsSheet, cellmapRange, cellmapSheet, ' 1, 2');
+
+  test('.deleteRecords() properly deletes records and cellmappings with leading spaces', function(){
+    deepEqual(actual.shiftsRange, expectedShiftsRange, 'shifts properly deleted with leading spaces');
+    deepEqual(actual.cellmapRange, expectedCellmapRange, 'cellmappings properly deleted with leading spaces');
+  });
+
+  function runDeletions(shifts, shiftsRange, shiftsSheet, cellmapRange, cellmapSheet, idStr){
+    shiftsSheet
+      .clearRange()
+      .setRange(shiftsRange);
+    cellmapSheet
+      .clearRange()
+      .setRange(cellmapRange);
+
+    var shiftsView = new mockView(shifts);
+    shiftsView.deleteRecords(idStr);
+    shiftsSheet.refresh();
+    cellmapSheet.refresh();
+
+    var newShiftsRange = toRange(shiftsSheet.data, shiftsSheet.headers),
+      newCellmapRange = toRange(cellmapSheet.data, cellmapSheet.headers);
+
+    var ret = {
+      shiftsRange: newShiftsRange,
+      cellmapRange: newCellmapRange
+    }
+    Logger.log('ret.shiftsRange: ' + ret.shiftsRange);
+    Logger.log('ret.cellmapRange: ' + ret.cellmapRange);
+
+    return ret;
+  };
+
+
+
+};
+
+function mockView(rl){
+  this.recordList = rl;
+  this.model = {sheet: new Sheet('0AkfgEUsp5QrAdEpVTjFMUzhINkFrM3BDUklWeW5LaGc', 'index')};
+  this.cache = {cellmap: {sheet: new Sheet('0AkfgEUsp5QrAdGMybndEOWgzOWI3TVozZmhjQnFCbHc','cellmap')}};
+  // Logger.log('this.model.sheet.data[0]: ' + this.model.sheet.data[0].id);
+  // Logger.log('this.cache.cellmap.sheet.data[0]: ' + this.cache.cellmap.sheet.data[0].id);
+  
+  this.deleteRecords = function (idStr){
+    Logger.log('running this.deleteRecords('+idStr+')');
+    var ids = formatIds(idStr),//converts string to arr of ints
+      cellmapIds = getCellmapIds(ids, this.cache.cellmap.sheet);
+    Logger.log('cellmapIds: ' + cellmapIds);
+    
+    this.recordList = bulkDeleteFromList(this.recordList, ids);
+    this.model.sheet.data = bulkDeleteFromList(this.model.sheet.data, ids);
+    this.cache.cellmap.sheet.data = bulkDeleteFromList(this.cache.cellmap.sheet.data, cellmapIds);
+    updateRange(this.model.sheet);
+    updateRange(this.cache.cellmap.sheet);
+
+    return this;
+
+    function formatIds(ids){//input: String of comma-separated Shift Ids
+                            //output: Array of Integer Shift Ids
+      idArr = ids.split(',');
+      return _.map(idArr, function(id){
+        return Number(id.trim());
+      });
+    };
+
+    function getCellmapIds(ids, cellmapSheet){//input: Array of Integer Shift Ids, Sheet Object
+                                              //output: Array of Integer Cellmap Ids
+      var cellmappings = _.map(ids, function(id){
+        return _.find(cellmapSheet.data, function(row){
+          return row.recordid === id;
+        });
+      });
+      var cellmapids = _.pluck(cellmappings, 'id');
+      return cellmapids;
+    };
+
+    function updateRange(sheet){
+      var range = toRange(sheet.data, sheet.headers);
+      sheet
+        .clearRange()
+        .setRange(range);
+    };
+  };
+
+};
+
+function bulkDeleteFromList(list, ids){ //input: Array of Shifts, Array of Integers
+                                        //output: Array of Shifts
+                                        //side-effects: deletes shifts with ids given in args from Shifts Array 
+
+  _.each(ids, function(id){
+    list = deleteFromList(list, id);
+  });
+
+  list = reIndexList(list, ids[0]);
+
+  return list;
+};
+
 function deleteFromList(list, id){
-  list = _.reject(list, function (row){
+  Logger.log('running deleteFromList('+list+', '+id+')');
+  var newList = [];
+  _.each(list, function(row){
+    newList.push(_.clone(row));
+  });
+  newList = _.reject(newList, function (row){
     return row.id === id;
   });
+  return newList;
 };
+
+function reIndexList(list, reIndexStart){
+  var listHead = _.head(list, reIndexStart),
+    listTail = _.tail(list, reIndexStart),
+    newId = reIndexStart;
+  _.each(listTail, function(row){
+    row.id = newId;
+    newId++;
+  });
+  var newList = listHead.concat(listTail);
+  return newList;
+};
+
 
 function testCreateInvoiceSheet(){
   var now = new Date(); 
@@ -170,7 +387,7 @@ function testInvoiceWriteToModel(chargeScenarios, p){
       expectedCharge = scenario.expectedCharge;
 
     test('Invoice.writeToModel() creates correct charges for scenario: ' + scenarioName, function(){
-      equal(charge, expectedCharge, 'correct chrage for ' + scenarioName);
+      deepEqual(charge, expectedCharge, 'correct chrage for ' + scenarioName);
     });
   });
 };
