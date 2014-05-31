@@ -550,27 +550,19 @@ function getEmergencyExtraShifts(ref0id){
     model.sheet.updateCell(row, col, relid);
   };
 
-  function toRange(sheet){
-    var range = [];
-    _.map(sheet.data, function (row){
-      range.push(_.map(sheet.headers, function (header){
-        return row[header];
-      }));
-    })
-    return range;
-  };
-
   //**ACCESSOR METHODS **//
 
   this.deleteRecords = function (idStr){
     Logger.log('running this.deleteRecords('+idStr+')');
-    var ids = formatIds(idStr),//converts string to arr of ints
-      cellmapIds = getCellmapIds(ids, this.cache.cellmap.sheet);
+    var ids = formatIds(idStr);//converts string to arr of ints
     Logger.log('ids: ' + ids);
+    var cellmapIds = getCellmapIds(ids, this.cache.cellmap.sheet);
     Logger.log('cellmapIds: '+ cellmapIds);
     
     this.recordList = bulkDeleteFromList(this.recordList, ids);
+    Logger.log('this.model.sheet.data.length: ' + this.model.sheet.data.length);
     this.model.sheet.data = bulkDeleteFromList(this.model.sheet.data, ids);
+    Logger.log('this.model.sheet.data.length: ' + this.model.sheet.data.length);
     this.cache.cellmap.sheet.data = bulkDeleteFromList(this.cache.cellmap.sheet.data, cellmapIds);
     updateRange(this.model.sheet);
     updateRange(this.cache.cellmap.sheet);
@@ -579,7 +571,9 @@ function getEmergencyExtraShifts(ref0id){
 
     function formatIds(ids){//input: String of comma-separated Shift Ids
                             //output: Array of Integer Shift Ids
+      Logger.log('running formatIds('+ids+')');
       idArr = ids.split(',');
+      Logger.log('idArr: ' +idArr);
       return _.map(idArr, function(id){
         return Number(id.trim());
       });
@@ -587,18 +581,21 @@ function getEmergencyExtraShifts(ref0id){
 
     function getCellmapIds(ids, cellmapSheet){//input: Array of Integer Shift Ids, Sheet Object
                                               //output: Array of Integer Cellmap Ids
-      Logger.log('running getCellmapIds('+ids+','+cellMapSheet+')');
+      Logger.log('running getCellmapIds('+ids+','+cellmapSheet+')');
       var cellmappings = _.map(ids, function(id){
         return _.find(cellmapSheet.data, function(row){
           return row.recordid === id;
         });
       });
-      var cellmapids = _.pluck(cellmappings, 'id');
+
+      var cellmapids = cellmappings[0] === undefined ? [] : _.pluck(cellmappings, 'id');
+      Logger.log('cellmapids: ' + cellmapids);
       return cellmapids;
     };
 
     function updateRange(sheet){
       var range = toRange(sheet.data, sheet.headers);
+      Logger.log(sheet.class +' '+sheet.instance+' range: ' + range);
       sheet
         .clearRange()
         .setRange(range);
@@ -607,18 +604,18 @@ function getEmergencyExtraShifts(ref0id){
     function bulkDeleteFromList(list, ids){ //input: Array of Shifts, Array of Integers
                                             //output: Array of Shifts
                                             //side-effects: deletes shifts with ids given in args from Shifts Array 
+      if (ids.length > 0){//don't execute if ids is empty array
+        _.each(ids, function(id){
+          list = deleteFromList(list, id);
+        });
 
-      _.each(ids, function(id){
-        list = deleteFromList(list, id);
-      });
-
-      list = reIndexList(list, ids[0]);
-
+        list = reIndexList(list, ids[0]);
+      }
       return list;
     };
 
     function deleteFromList(list, id){
-      Logger.log('running deleteFromList('+list+', '+id+')');
+      // Logger.log('running deleteFromList('+list+', '+id+')');
       var newList = [];
       _.each(list, function(row){
         newList.push(_.clone(row));

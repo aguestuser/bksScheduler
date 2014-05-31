@@ -493,12 +493,26 @@ function getRefIdFromRecord(record, refName){
 function toRange(recs, headers){
   var range = [];
   _.each(recs, function (rec, i, recs){
+    Logger.log('rec.id: ' + rec.id + '; rec.am: ' + rec.am + 'rec.pm: ' + rec.pm);
     var row = [];
     _.each(headers, function (header){
-      if (rec[header] === 0){row.push(0);} else{
-        row.push(rec[header] || '');      
+      if (header === 'am' || header === 'pm'){
+        Logger.log('rec ' + rec.id + ' header: ' + header + ' value: ' + rec[header]);
+      }
+      if (rec[header] === 0){
+        row.push(0);
+      } else if (rec[header] === false) {
+        row.push(false);
+      } else if (rec[header] === undefined){
+        // if (header == 'am' || header=='pm'){
+        //   row.push('false');
+        // } else {
+        row.push('');        
+      } else {
+        row.push(rec[header]);      
       }
     });
+    // Logger.log('row: ' + row);
     range.push(row);
   });
   return range.length > 1 ? range : range[0];

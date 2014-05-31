@@ -80,19 +80,22 @@ function testDeleteFromList(){
         name: 'Nikolai'
       }]      
     ];
-  Logger.log('deleting first row');
   shifts0 = bulkDeleteFromList(shifts, [0]);
-  Logger.log('deleting second row');
   shifts1 = bulkDeleteFromList(shifts, [1]);
-  Logger.log('deleting last row');
   shifts2 = bulkDeleteFromList(shifts, [3]);
-  Logger.log('deleting second and third rows');
   shifts3 = bulkDeleteFromList(shifts, [1,2]);
+  shifts4 = bulkDeleteFromList(shifts, [2,1]);
+  shifts5 = bulkDeleteFromList(shifts, [5]);
+  shifts6 = bulkDeleteFromList(shifts, []);
+
   test('deleteFromList() deletes list elements correctly', function(){
     deepEqual(shifts0, expectedShifts[0], 'correctly deletes first row');
     deepEqual(shifts1, expectedShifts[1], 'correctly deletes middle row');
     deepEqual(shifts2, expectedShifts[2], 'correctly deletes last row');
     deepEqual(shifts3, expectedShifts[3], 'correctly deletes multiple rows');
+    deepEqual(shifts4, expectedShifts[3], 'correctly handles swapping shift order');
+    deepEqual(shifts5, shifts, 'correctly handles deleting non-existent shift');
+    deepEqual(shifts6, shifts, 'correclty handles being passed empty array');
   });
 };
 
@@ -221,7 +224,7 @@ function mockView(rl){
           return row.recordid === id;
         });
       });
-      var cellmapids = _.pluck(cellmappings, 'id');
+      var cellmapids = cellmappings.length >= 0 ? _.pluck(cellmappings, 'id') : [];
       return cellmapids;
     };
 
@@ -238,13 +241,14 @@ function mockView(rl){
 function bulkDeleteFromList(list, ids){ //input: Array of Shifts, Array of Integers
                                         //output: Array of Shifts
                                         //side-effects: deletes shifts with ids given in args from Shifts Array 
+  if (ids.length > 0){//don't execute if ids is empty array
+    ids = ids.sort();
+    _.each(ids, function(id){
+      list = deleteFromList(list, id);
+    });
 
-  _.each(ids, function(id){
-    list = deleteFromList(list, id);
-  });
-
-  list = reIndexList(list, ids[0]);
-
+    list = reIndexList(list, ids[0]);
+  }
   return list;
 };
 
@@ -256,7 +260,7 @@ function deleteFromList(list, id){
   });
   newList = _.reject(newList, function (row){
     return row.id === id;
-  });
+  });    
   return newList;
 };
 
