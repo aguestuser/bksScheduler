@@ -22,6 +22,7 @@ function tests(){
   // testInvoiceMethods();
   testDeleteFromList();
   testDeleteRecord();
+  testReconcileInvoices();
 };
 
 
@@ -627,6 +628,86 @@ function getDiscountShifts(start, end){
     });
   });
   return shifts;
+};
+
+function testReconcileInvoices(){
+  var restaurantsSheet = new Sheet('', 'info'),
+    paymentsSheet = new Sheet('', 'index'),
+    balancesSheet = new Sheet('', 'balances'),
+    invoicesSheet = new Sheet('', 'index'),
+    defaultInvoice = {
+      id: 0, //num
+      charge: 10, //num
+      paid: false, //bool
+      paymentProcessed: {}, //Date obj
+      partiallyPaid: false, //bool
+      partialPaymentAmount: 0 //num        
+    },
+    invoiceStubs = getInvoiceStubs(defaultInvoice),
+    p = {
+      restaurant: '',//str
+      dateProcessed: new Date(2014, 4, 12), // Date (5/5/14)
+      amount: '', //num
+      method: 'cash', //str
+      check number: '', //str
+      invoicesClaimed: '101', //str
+      restaurantsSheet: restaurantsSheet, //Sheet
+      paymentsSheet: paymentsSheet, //Sheet
+      balancesSheet: balancesSheet, //Sheet
+      invoicesSheet: invoicesSheet //Sheet
+    },
+    paymentScenarios = [30, 20, 15, 0, 40, '30.00', '$30.00'],
+    expectedInvoices = getExpectedInvoices(invoicesSheet, invoiceStubs);
+
+    test('.reconcileInvoices() writes correct values to invoices', function(){
+      _.each(paymentScenarios, function(amount, i){
+        loadInvoiceStubs(invoicesSheet, invoiceStubs);
+        p.amount = amount;
+        var payment = new Payment(p);
+        payment.testReconcileInvoices();
+        invoicesSheet.refresh();
+        deepEqual(invoicesSheet.data, expectedInvoices[i].data, 'correct value written for amount: ' + amount);
+      });
+    });
+};
+
+function getInvoiceStubs(defaultInvoice){
+  var stubs = [];
+  _(3).times(function(n){
+    defaultInvoice.id = n;
+    stubs.push(defaultInvoice);
+  });
+  return stubs;
+};
+
+function loadInvoiceStubs(invoicesSheet, invoiceStubs){
+  var range = toRange([invoiceStubs], invoicesSheet.headers);
+  invoicesSheet
+    .clearRange()
+    .setRange(range)
+    .refresh();
+  return true;
+};
+
+function getExpectedInvoics(invoiceSheet, invoiceStubs){
+  var ssId = invoiceSheet.getParent().getId(),
+    sheets = [
+      new Sheet(ssId, 's30'),
+      new Sheet(ssId, 's20'),
+      new Sheet(ssId, 's15'),
+      new Sheet(ssId, 's0'),
+      new Sheet(ssId, 's40'),
+      new Sheet(ssId, 's30'),
+      new Sheet(ssId, 's30')
+    ];
+return sheets;
+};
+
+function setMockInvoiceVals(invoice, paidVal, partiallyPaidVal, partialPaymentAmountVal){
+  invoice.paid = paidVal;
+  invoice.partiallyPaid = partiallyPaidVal;
+  invoice.partialPaymentAmount = partialPaymentAmountVal;
+  return invoice;
 };
 
 function testSortByDate(view){

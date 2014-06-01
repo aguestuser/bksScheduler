@@ -7,11 +7,11 @@ function recordPayment(e){
       method: getResponseByItemTitle(ir, 'Payment Method'),
       checkNumber: getResponseByItemTitle(ir, 'Check Number'),
       invoicesClaimed: getResponseByItemTitle(ir, 'Invoices Claimed')
+      restaurantsSheet = new Sheet(getSsKey('restaurants'), 'info'),
+      paymentsSheet = new Sheet(getSsKey('payments'), 'index'),
+      balancesSheet = new Sheet(getSsKey('restaurants'), 'balances')
     },
-    restaurantsSheet = new Sheet(getSsKey('restaurants'), 'info'),
-    paymentsSheet = new Sheet(getSsKey('payments'), 'index'),
-    balancesSheet = new Sheet(getSsKey('restaurants'), 'balances'),
-    payment = new Payment(p, restaurantsSheet, paymentsSheet, balancesSheet);
+    payment = new Payment(p);
   
   payment
     .writeToModel()
@@ -26,16 +26,16 @@ function getResponseByItemTitle(ir, title){
   }
 };
 
-function Payment(p, restaurantsSheet, paymentsSheet, balancesSheet){
+function Payment(p){
 
   var self = this;
 
   //attrs
-  this.id = paymentsSheet.data.length; //num
-  this.model = paymentsSheet; //Sheet obj
-  this.restaurantsSheet = restaurantsSheet;
+  this.id = p.paymentsSheet.data.length; //num
+  this.model = p.paymentsSheet; //Sheet obj
+  this.restaurantsSheet = p.restaurantsSheet;
   this.restaurant = getRestaurant(this.restaurantsSheet, p); //Restaurant obj
-  this.balancesSheet = balancesSheet;
+  this.balancesSheet = p.balancesSheet;
   this.balance =  getBalance(this.balancesSheet);//Sheet
 
   Logger.log("index of '$': " + p.amount.indexOf('$'));
@@ -85,6 +85,57 @@ function Payment(p, restaurantsSheet, paymentsSheet, balancesSheet){
     this.balancesSheet = new Sheet(getSsKey('restaurants'), 'balances');
     this.balance = getBalance(this.balancesSheet);
     return this;
+  };
+
+  this.reconcileInvoices = function(amount){  
+  //input: Payment.amount, Payment.restaurant (Restaurant) Payment.balance (Balance), Payment. 
+  //side effects: modify Invoice.paid values of appropriate invoices (set to true)
+  //              modify Invoice.partiallyPaid values of appropriate invoices (set to true)
+  //              record Invoice.partialPaymentAmount where appropriate
+  //              modify Balance.unpaidInvoices for appropriate restaurant
+  //              modify Balance.partiallyPaidInvoices for appropriate restaurant (if applicable)
+  //              modify Balance.partialPaymentAmount for appropriate restaurant (if applicable)
+  var invoices = getInvoicesPaid(amount, this.restaurant, this.balance);
+  _.each(invoices, function(invoice){
+
+  });
+
+  };
+  // *purpose:*
+  // take payment, 
+  // determine which invoices it applies to, 
+  // record which invoices have been paid in full, 
+  // record which invoices have been partly paid,
+  // generate list of invoices still not paid
+
+  // *examples*
+  // Mile End, Broooklyn has the following set of invoices: {001: $10, 002: $10, 003: $10}
+  // (1) a payment of $30:
+  //    -> records full payment of all invoices
+  //    -> records no invoices as partially paid
+  //    -> records no partial payment amounts
+  //    -> sets unpaid invoices to ''
+  // (2) a payment of $20:
+  //    -> records full payment of invoices 001 and 002
+  //    -> records no partial payments
+  //    -> records no partial payment amounts
+  //    -> modifies unpaid invoices from '003'
+  // (3) a payment of $15:
+  //    -> records full payment of invoice 001
+  //    -> records parital payment of invoice 002
+  //    -> records partial payment amount of $5 for invoice 002
+  //    -> sets unpaid invoices to '003' 
+  //    -> sets partially paid invoices to '002'
+  //    -> sets partial payment amount to $5
+  // (4) a payment of $0
+  // (5) a payment of $40
+
+  
+
+  function getInvoicesPaid(invoices, amount){
+    var unpaidInvoices = _.pluck(invoices, function(){
+
+    });
   };
 
 
