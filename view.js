@@ -75,7 +75,7 @@ function View(p){
       range = [];
     if (this.range === undefined || this.range === ''){
       range[0] = ['Nothing found!'];
-      toast('There were no records found matching those parameters!');
+      stickyToast('There were no records found matching those parameters!');
     } else {
       range = this.range;
     }
@@ -205,7 +205,7 @@ function getEmergencyExtraShifts(ref0id){
     Logger.log('Running '+ this.view.class +'.writeToModel()!')
     if (self.newRec && self.view.type !== 'grid'){
       //Logger.log('Tried to create new recs from list view. Aborted.');
-      Toast('Sorry! You can only run "Create New Records" from grid view!');
+      stickyToast('Sorry! You can only run "Create New Records" from grid view!');
       return;
     } else {
       for (var i = 0; i < this.recordList.length; i++){//match record list rows to this.model.sheet rows by id
@@ -451,7 +451,7 @@ function getEmergencyExtraShifts(ref0id){
   this.showConflicts = function(){
     //Logger.log('running .showConflicts()');
     if (this.conflicts.length > 0){
-      toast('Conflicts found! Highlighted rows conflict with ' + this.refs[1].class + ' ' + this.rel.view.view.class);
+      stickyToast('Conflicts found! Highlighted rows conflict with ' + this.refs[1].class + ' ' + this.rel.view.view.class);
       handleConflicts();
     } else {
       toast('No conflicts found!');
@@ -967,7 +967,7 @@ Logger.log('running sortByDate('+recs+')');
     } else {
       error = 'ERROR: You tried to save a record with an invalid code: '+code;
       Logger.log(error);
-      toast (error);
+      stickyToast (error);
     }
   };
 
@@ -1081,7 +1081,7 @@ Logger.log('running sortByDate('+recs+')');
 
   function logRefErrors(){
     if (self.errors.refs !== undefined){
-      toast(getErrorStr(self.errors.refs));
+      stickyToast(getErrorStr(self.errors.refs));
       //Logger.log(getErrorStr(self.errors.refs));        
     }
   }
@@ -1513,7 +1513,7 @@ Logger.log('running sortByDate('+recs+')');
     var error = 'ERROR: There was no ' + nameKey + ' found with name ' + name + '. (' + name + ' is either not in the database or their status is inactive.)';
     self.errors.recordList.push(error);//quotes and brackets in case error obj or error.recordList array not yet defined
     //Logger.log(error);
-    toast(error);
+    stickyToast(error);
   };
 
   function logRlTimeFormatError(ft){
@@ -1529,7 +1529,7 @@ Logger.log('running sortByDate('+recs+')');
     message = message.concat(ending);
     self.errors.recordList = message;
     //Logger.log(message);
-    toast(message);
+    stickyToast(message);
   };
 
 
@@ -1768,7 +1768,7 @@ Logger.log('running sortByDate('+recs+')');
       setStatuses(refId);
     };
 
-    toast(emailCount + ' emails sent!');
+    stickyToast(emailCount + ' emails sent!');
     return this;
 
     function initEmailRecords(){
