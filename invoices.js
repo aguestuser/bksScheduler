@@ -118,12 +118,103 @@ function createInvoice(p){
 
 function Invoices(invoicesSheet){
   this.list = invoicesSheet.data;
+  this.all = function (sheets){
+    var collection = [];
+    _.each(restaurantsSheet.data, function(restaurant){
+
+      return collectInvoices(restaurant, sheets);
+    });
+  };
+  this.forRestaurant = function(restaurant, sheets){
+
+  };
+
+
+  function collectInvoices(restaurants, sheets){
+    var collection = [];
+    _.each(invoicesSheet.data, function(row){
+      if _.contains()
+      var p = {
+        now: row.dateIssued, //Date
+        invoicePrintoutSheet: new Sheet(row.printoutId, 'index'),//Sheet
+        invoicesSheet: invoicesSheet,//Sheet
+        restaurantsSheet: restaurantsSheet,//Sheet
+        balancesSheet: balancesSheet,//Sheet
+        invoices: self,//Invoices
+        week: row.weekStart.getWeekMap(),//Date.weekMap
+        restaurant: getRestaurantFromName(row.restaurant),//Restaurant
+        shifts: getShiftsFromIdStr(row.shiftIds) //arr of Shifts
+      },
+      invoice = new Invoice(p);
+      set.push(invoice);
+    });
+    return collection;
+  };
+
+  function getRestaurantFromName(name, restaurantsSheet){
+    var restaurant = _.find(restaurantsSheet.data, function(restaurant){
+      return name === restaurant.name;
+    });
+    return restaurant;
+  };
+
+  function getShiftsFromIdStr(idStr, shiftsSheet){
+    var ids = idStr.split(', '),
+      shifts = [];
+    _.map(ids, function(id){
+      var shift = _.find(shiftsSheet.data, function(shift){
+        return shift.id === id;
+      });
+      shifts.push(shift);
+    });
+    return shift;
+  };
+
   this.getCount = function(){
     return this.list.length;
   }
   this.add = function(invoice){
     this.list.push(invoice);
   };
+  this.forRestaurant = function (restaurant){ //input: Restaurant obj
+                                              //output: arr of Invoices
+    return _.select(this.list, function(invoice){
+      return invoice.restaurant === restaurant.name;
+    });    
+  };
+  this.unpaidByRestaurant = function (restaurant){ //input: Restaurant obj
+                                                  //output: arr of Invoices
+    return _.select(this.list, function(invoice){
+      return invoice.restaurant === restaurant.name && !invoice.paid;
+    }); 
+  };
+  this.paidBy = function(restaurant, amount){ //input: Num (payment amount)
+                                  //output: Obj of Arrays (paid invoices and partially paid invoices)
+    var amountCount = _.clone(amount); 
+      openInvoices = this.openForRestaurant(restaurant),
+      paid = {
+        inFull: [], //Arr of Invoices (paid in full)
+        inPart: [], //Arr of Invoice/Num pairings of the form:
+                    //{invoice: {},
+                    // partialPaymentAmount: ##}
+      },
+    _.each(openInvoices, function(invoice){
+      if (amount > 0){
+        var charge = invoice.paidInPart ? invoice.charge - invoice.partialPaymentAmount : invoice.charge;
+        if (amountCount >= charge){
+          paid.inFull.push(invoice);
+          amountCount = amountCount - charge;
+        } else if (amountCount < charge){
+          paid.inPart.push({
+            invoice: invoice,
+            partialPaymentAmount: charge - amountCount
+          })
+        };
+      }  
+    });                                  
+    return paid;
+  };
+
 };
 
 function Invoice (p){
@@ -202,6 +293,23 @@ function Invoice (p){
     return this;
   };
 
+  this.recordFullPayment = function (date){//input: payment date, side effects: update Invoice model row, output: Invoice obj
+    this.paidInFull = true;
+    this.datePaidInFull = date;
+    this.writeToModel();
+    return this;
+  };
+
+  this.recordPartialPayment = function(date, amount){
+    this.paidInPart = true;
+    this.datePaidInPart = date;
+    this.partialPaymentAmount = amount;
+  };
+
+  this.forgetPartialPayment = function(){
+    this.paidInPart = false;
+  };
+
   this.refreshInvoicesSheet = function(){
     this.invoicesSheet = new Sheet(this.invoicesSheet.id, 'index');
     return this;
@@ -247,7 +355,9 @@ function Invoice (p){
     Logger.log('added sums')
 
     var footerStart = sumsStart + sums.length,
-      unpaidInvoices = self.balance.unpaidInvoices, 
+      unpaidInvoices = self.balance.unpaidInvoices,
+      // partiallyPaidInvoices = self.balances.partiallyPaidInvoices,
+      // partialPaymentAmount = self.balances.partialPaymentAmount, 
       footer = getFooter(this.restaurant, unpaidInvoices, filler);
     range = range.concat(footer);
     Logger.log('added footer');

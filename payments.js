@@ -47,7 +47,7 @@ function Payment(p){
   this.dateProcessed = p.dateProcessed; //Date
   this.method = p.method; //str
   this.checkNumber = Number(p.checkNumber); //num
-  this.invoicesClaimed = p.invoicesClaimed; //arr
+  this.invoicesClaimed = p.invoicesClaimed; //str
   this.invoicesPaid = getInvoicesPaid(); //arr of Invoices
 
   //public methods
@@ -87,19 +87,26 @@ function Payment(p){
     return this;
   };
 
-  this.reconcileInvoices = function(amount){  
-  //input: Payment.amount, Payment.restaurant (Restaurant) Payment.balance (Balance), Payment. 
-  //side effects: modify Invoice.paid values of appropriate invoices (set to true)
-  //              modify Invoice.partiallyPaid values of appropriate invoices (set to true)
-  //              record Invoice.partialPaymentAmount where appropriate
-  //              modify Balance.unpaidInvoices for appropriate restaurant
-  //              modify Balance.partiallyPaidInvoices for appropriate restaurant (if applicable)
-  //              modify Balance.partialPaymentAmount for appropriate restaurant (if applicable)
-  var invoices = getInvoicesPaid(amount, this.restaurant, this.balance);
-  _.each(invoices, function(invoice){
+  this.reconcileInvoices = function(amount){//input: Payment.amount, Payment.restaurant (Restaurant) Payment.balance (Balance), Payment. 
+                                            //side effects: modify Invoice.paid values of appropriate invoices (set to true)
+                                            //              modify Invoice.partiallyPaid values of appropriate invoices (set to true)
+                                            //              record Invoice.partialPaymentAmount where appropriate
+                                            //              modify Balance.unpaidInvoices for appropriate restaurant
+                                            //              modify Balance.partiallyPaidInvoices for appropriate restaurant (if applicable)
+                                            //              modify Balance.partialPaymentAmount for appropriate restaurant (if applicable)
+    var invoices = new Invoices(this.invoicesSheet),
+      invoicesPaid = invoices.paidBy(this.restaurant, this.amount),
+      balances = new Balances(this.balancesSheet),
+      balance = balances.forRestaurant(this.restaurant);
 
-  });
 
+    _.each(invoicesPaid.inFull, function(invoice){
+      if(invoice.paidInPart){invoice.forgetPartialPayment();}
+      invoice.recordFullPayment(this.dateProcessed);
+    });
+    _.each(invoicesPaid.inPart, function(invObj){
+      invObj.invoice.recordPartialPayment(this.date, invObj.partialPaymentAmount);
+    });
   };
   // *purpose:*
   // take payment, 
@@ -109,34 +116,30 @@ function Payment(p){
   // generate list of invoices still not paid
 
   // *examples*
-  // Mile End, Broooklyn has the following set of invoices: {001: $10, 002: $10, 003: $10}
-  // (1) a payment of $30:
-  //    -> records full payment of all invoices
-  //    -> records no invoices as partially paid
-  //    -> records no partial payment amounts
-  //    -> sets unpaid invoices to ''
-  // (2) a payment of $20:
-  //    -> records full payment of invoices 001 and 002
-  //    -> records no partial payments
-  //    -> records no partial payment amounts
-  //    -> modifies unpaid invoices from '003'
-  // (3) a payment of $15:
-  //    -> records full payment of invoice 001
-  //    -> records parital payment of invoice 002
-  //    -> records partial payment amount of $5 for invoice 002
-  //    -> sets unpaid invoices to '003' 
-  //    -> sets partially paid invoices to '002'
-  //    -> sets partial payment amount to $5
-  // (4) a payment of $0
-  // (5) a payment of $40
+  // (A) Given that: Mile End, Broooklyn has the following set of invoices: {001: $10, 002: $10, 003: $10}
+    // (1) a payment of $30 should:
+    //    -> records full payment of all invoices
+    //    -> records no invoices as partially paid
+    //    -> records no partial payment amounts
+    //    -> sets unpaid invoices to ''
+    // (2) a payment of $20 should:
+    //    -> records full payment of invoices 001 and 002
+    //    -> records no partial payments
+    //    -> records no partial payment amounts
+    //    -> modifies unpaid invoices from '003'
+    // (3) a payment of $15 should:
+    //    -> records full payment of invoice 001
+    //    -> records parital payment of invoice 002
+    //    -> records partial payment amount of $5 for invoice 002
+    //    -> sets unpaid invoices to '003' 
+    //    -> sets partially paid invoices to '002'
+    //    -> sets partial payment amount to $5
+    // (4) a payment of $0 should:
+    // (5) a payment of $40 should:
+
+  //(B) Given that: Mile End, Manhatttan has the following set of invoices {0: $10, 1: $10} and invoice[0] has been paid in part with a partial payment amount of $5
 
   
-
-  function getInvoicesPaid(invoices, amount){
-    var unpaidInvoices = _.pluck(invoices, function(){
-
-    });
-  };
 
 
   //private methods

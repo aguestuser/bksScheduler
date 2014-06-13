@@ -630,6 +630,22 @@ function getDiscountShifts(start, end){
   return shifts;
 };
 
+function testInvoicesOpenForRestaurant(){
+
+};
+
+function testInvoicesPaidBy(){
+
+};
+
+function testInvoiceRecordFullPayment(){
+
+};
+
+function testInvoiceRecordPartialPayment(){
+  
+};
+
 function testReconcileInvoices(){
   var restaurantsSheet = new Sheet('', 'info'),
     paymentsSheet = new Sheet('', 'index'),

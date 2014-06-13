@@ -1,5 +1,10 @@
-function getBalances(){
-  var 
+function Balances(balancesSheet){
+  this.list = balancesSheet.data;
+  this.forRestaurant = function(restaurant){
+    _.find(this.balancesSheet.data, function(balance){
+      return balance.restaurant === self.restaurant.name;
+    });
+  };
 };
 
 function Balance(balances, initBalance, restaurantid, date){ //inputs: (arr of Balances, num, Date)
