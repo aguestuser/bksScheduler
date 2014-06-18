@@ -493,7 +493,6 @@ function getRefIdFromRecord(record, refName){
 function toRange(recs, headers){
   var range = [];
   _.each(recs, function (rec, i, recs){
-    Logger.log('rec.id: ' + rec.id + '; rec.am: ' + rec.am + 'rec.pm: ' + rec.pm);
     var row = [];
     _.each(headers, function (header){
       if (header === 'am' || header === 'pm'){

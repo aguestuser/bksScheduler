@@ -402,25 +402,17 @@ function testInvoiceUpdateBalance(scenario, p){
   p.shifts = scenario.shifts;
   var invoice = new Invoice(p),
     oldCharges = invoice.balance.charges;
-  Logger.log('invoice: ' +invoice);
-  Logger.log('invoice.balance: ' +invoice.balance);
-  Logger.log('invoice.balance.charges: ' +invoice.balance.charges);
   invoice
-    .updateBalance();
-  Logger.log('invoice.balance.charges: ' +invoice.balance.charges);
-    
+    .updateBalance();    
 
   test('Invoice.updateBalance() updates charges value correctly', function(){
     var newCharges = invoice.balance.charges,
       expectedCharges = oldCharges + invoice.charges.charge;
-    Logger.log('expectedCharges: ' + expectedCharges);
-    Logger.log('newCharges: ' + newCharges);
     equal(newCharges, expectedCharges, 'charges updated correctly');
   });
   test('Invoice.updateBalance() updates last charge correctly', function(){
     var date = invoice.balance.lastCharge.toDateString();
     var expectedDate = invoice.dateIssued.toDateString();
-    Logger.log('expectedDate' + expectedDate);
     deepEqual(date, expectedDate, 'last charge updated correctly');
   });
 };
@@ -429,10 +421,8 @@ function testInvoicePrintSingle(chargeScenarios, p){
   Logger.log('running testInvoicePrintSingle()');
   p.balancesSheet = new Sheet(p.balancesSheet.id, 'staticBalances');
   p.invoicesSheet = new Sheet(p.invoicesSheet.id, 'static0rows');
-  Logger.log('p.invoicesSheet.data.length: ' + p.invoicesSheet.data.length);
-  Logger.log('p.balancesSheet.data[59].balance: ' + p.balancesSheet.data[59].balance);
+
   _.each(chargeScenarios, function(scenario, scenarioName){
-    Logger.log('running loop for ' + scenarioName);
 
     var expectedSheet = new Sheet('1kiHg4fs7bMTJg4vAjZ1qZ8EBg1KUdmHNID-WoGrvEhk', scenarioName),
       resultsSheet = new Sheet('1bCb_k9JqaWY59uT7wuA2bNJOHneppL0s9Eg1zzwXPfA', scenarioName);

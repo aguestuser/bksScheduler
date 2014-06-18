@@ -1840,7 +1840,7 @@ Logger.log('running sortByDate('+recs+')');
         subject: getSubject(er[refId], emailType, refId),
         htmlBody: getBody(refId, er[refId], emailType)
       };
-      if (ee.user.id === 'austin@bkshift.com'){ep[refId].cc = 'tess@bkshift.com';}
+      if (ee.user.id === 'austin@bkshift.com' || ee.user.id === 'justin@bkshift.com'){ep[refId].cc = 'tess@bkshift.com';}
       
       function getEmailType(recs){//loop through records and return 'extra' if any shifts are 'extra', otherwise return 'emergency'
         if (recs[0].urgency == 'weekly'){
